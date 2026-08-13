@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OrçaFácil - Controle de Orçamentos</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f0f0f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <style>
+    :root {
+      --bg: #0f0f0f; --surface: #1a1a1a; --surface-raised: #222; --surface-hover: #2a2a2a;
+      --border: #333; --text: #f5f5f5; --text-secondary: #aaa; --text-muted: #666;
+      --accent: #e8e8e8; --accent-hover: #fff; --danger: #ff4444; --danger-soft: rgba(255,68,68,0.12);
+      --success: #4ade80; --success-soft: rgba(74,222,128,0.12); --warning: #fbbf24; --warning-soft: rgba(251,191,36,0.12);
+      --info: #60a5fa; --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px; --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased;
+    }
+    .app { max-width: 480px; margin: 0 auto; min-height: 100vh; position: relative; }
+    .header {
+      position: sticky; top: 0; z-index: 100; background: rgba(15,15,15,0.92);
+      backdrop-filter: blur(20px); border-bottom: 1px solid var(--border);
+      padding: 16px 20px; display: flex; align-items: center; justify-content: space-between;
+    }
+    .header-title { font-size: 18px; font-weight: 600; letter-spacing: -0.3px; }
+    .header-actions { display: flex; gap: 8px; align-items: center; }
+    .icon-btn {
+      width: 36px; height: 36px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+      background: var(--surface); color: var(--text-secondary); cursor: pointer;
+      display: flex; align-items: center; justify-content: center; transition: all 0.15s ease;
+    }
+    .icon-btn:hover { background: var(--surface-raised); color: var(--text); }
+    .icon-btn svg { width: 18px; height: 18px; }
+    .content { padding: 16px 20px 100px; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+      padding: 16px; margin-bottom: 12px; transition: all 0.15s ease; cursor: pointer;
+    }
+    .card:hover { border-color: #444; background: var(--surface-raised); }
+    .card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+    .card-icon {
+      width: 44px; height: 44px; border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;
+    }
+    .card-title { font-size: 16px; font-weight: 600; }
+    .card-meta { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+    .card-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
+    }
+    .card-stat { font-size: 13px; color: var(--text-secondary); }
+    .card-stat strong { color: var(--text); font-weight: 600; }
+    .badge {
+      font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px;
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+    .badge-success { background: var(--success-soft); color: var(--success); }
+    .badge-warning { background: var(--warning-soft); color: var(--warning); }
+    .badge-danger { background: var(--danger-soft); color: var(--danger); }
+    .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+    .stat-box {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+      padding: 14px 10px; text-align: center;
+    }
+    .stat-value { font-size: 22px; font-weight: 700; color: var(--text); }
+    .stat-label { font-size: 11px; color: var(--text-secondary); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .section-title {
+      font-size: 13px; font-weight: 600; color: var(--text-secondary);
+      text-transform: uppercase; letter-spacing: 0.8px; margin: 24px 0 12px;
+    }
+    .fab {
+      position: fixed; bottom: 24px; right: 24px; width: 56px; height: 56px; border-radius: 50%;
+      background: var(--accent); color: var(--bg); border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: var(--shadow); transition: transform 0.2s ease; z-index: 200;
+    }
+    .fab:hover { transform: scale(1.05); }
+    .fab svg { width: 24px; height: 24px; }
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      display: none; align-items: flex-end; justify-content: center;
+      z-index: 300; backdrop-filter: blur(4px);
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      background: var(--surface); width: 100%; max-width: 480px;
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      border: 1px solid var(--border); border-bottom: none;
+      max-height: 85vh; overflow-y: auto; animation: slideUp 0.25s ease;
+    }
+    @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .modal-header { padding: 20px 20px 0; display: flex; align-items: center; justify-content: space-between; }
+    .modal-title { font-size: 18px; font-weight: 600; }
+    .modal-body { padding: 16px 20px 24px; }
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; font-size: 13px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; }
+    .form-input, .form-select, .form-textarea {
+      width: 100%; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); color: var(--text); font-size: 15px; font-family: inherit; transition: border-color 0.15s;
+    }
+    .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: var(--accent); }
+    .form-textarea { min-height: 80px; resize: vertical; }
+    .btn {
+      width: 100%; padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+      background: var(--surface-raised); color: var(--text); font-size: 15px; font-weight: 600;
+      cursor: pointer; transition: all 0.15s; font-family: inherit;
+    }
+    .btn:hover { background: var(--surface-hover); }
+    .btn-primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-danger { background: var(--danger-soft); color: var(--danger); border-color: rgba(255,68,68,0.3); }
+    .btn-danger:hover { background: rgba(255,68,68,0.2); }
+    .btn-row { display: flex; gap: 10px; margin-top: 8px; }
+    .btn-row .btn { flex: 1; }
+    .orc-item {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+      padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; transition: all 0.15s;
+    }
+    .orc-item:hover { border-color: #444; }
+    .orc-item.best { border-color: var(--success); background: var(--success-soft); }
+    .orc-rank {
+      width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700; flex-shrink: 0; background: var(--surface-raised); color: var(--text-secondary);
+    }
+    .orc-rank.gold { background: var(--warning-soft); color: var(--warning); }
+    .orc-rank.silver { background: rgba(192,192,192,0.15); color: #c0c0c0; }
+    .orc-rank.bronze { background: rgba(205,127,50,0.15); color: #cd7f32; }
+    .orc-info { flex: 1; min-width: 0; }
+    .orc-fornecedor { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .orc-detalhes { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+    .orc-preco { font-size: 18px; font-weight: 700; color: var(--text); white-space: nowrap; }
+    .orc-preco.best { color: var(--success); }
+    .orc-actions { display: flex; gap: 6px; opacity: 0; transition: opacity 0.15s; }
+    .orc-item:hover .orc-actions { opacity: 1; }
+    .orc-actions .icon-btn { width: 32px; height: 32px; }
+    .empty { text-align: center; padding: 48px 20px; color: var(--text-muted); }
+    .empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
+    .empty-title { font-size: 16px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; }
+    .empty-text { font-size: 14px; }
+    .breadcrumb {
+      display: flex; align-items: center; gap: 8px; padding: 12px 20px; font-size: 13px;
+      color: var(--text-secondary); border-bottom: 1px solid var(--border);
+    }
+    .breadcrumb a { color: var(--text-secondary); text-decoration: none; cursor: pointer; }
+    .breadcrumb a:hover { color: var(--text); }
+    .breadcrumb-sep { color: var(--text-muted); }
+    .toast-container {
+      position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 400;
+      display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+    }
+    .toast {
+      background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 12px 20px; font-size: 14px; font-weight: 500; box-shadow: var(--shadow); pointer-events: auto; animation: toastIn 0.3s ease;
+    }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    @media (min-width: 768px) { .app { max-width: 600px; } .fab { right: calc(50% - 260px); } }
+  </style>
+</head>
+<body>
+  <div class="app" id="app"></div>
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script>
+    const DB_NAME = 'OrcaFacilDB'; const DB_VERSION = 1; let db = null;
+
+    const ICONS = {
+      plus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`,
+      back: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>`,
+      trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6"/></svg>`,
+      edit: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
+      download: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>`,
+      upload: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>`,
+      close: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>`,
+      tag: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82zM7 7h.01"/></svg>`,
+      store: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+      pill: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 20.5l10-10a4.95 4.95 0 00-7-7l-10 10a4.95 4.95 0 007 7Z"/><path d="M8.5 8.5l7 7"/></svg>`,
+      hammer: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12l-8.5 8.5a2.12 2.12 0 01-3-3L12 9"/><path d="M17.5 9.5L22 5l-3-3-4.5 4.5"/><path d="M11 5L8 2l-3 3 3 3"/></svg>`,
+      car: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 16H9m10 0h3v-3.15a1 1 0 00-.84-.99L16 11l-2.7-3.6a1 1 0 00-.8-.4H5.24a2 2 0 00-1.8 1.1l-.8 1.63A6 6 0 002 12.42V16h2"/><circle cx="6.5" cy="16.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/></svg>`,
+      food: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8zM6 1v3M10 1v3M14 1v3"/></svg>`,
+      shirt: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.47a1 1 0 00.99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.84l.58-3.47a2 2 0 00-1.34-2.23z"/></svg>`,
+      phone: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><path d="M12 18h.01"/></svg>`,
+      gift: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>`,
+    };
+
+    const CATEGORIA_ICONS = {
+      farmacia: { icon: 'pill', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
+      construcao: { icon: 'hammer', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+      automotivo: { icon: 'car', color: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },
+      alimentacao: { icon: 'food', color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
+      vestuario: { icon: 'shirt', color: '#a855f7', bg: 'rgba(168,85,247,0.12)' },
+      eletronicos: { icon: 'phone', color: '#06b6d4', bg: 'rgba(6,182,212,0.12)' },
+      presentes: { icon: 'gift', color: '#ec4899', bg: 'rgba(236,72,153,0.12)' },
+      outros: { icon: 'tag', color: '#6b7280', bg: 'rgba(107,114,128,0.12)' },
+    };
+
+    let state = { view: 'home', categoriaId: null, produtoId: null };
+
+    function initDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onerror = () => reject(req.error);
+        req.onsuccess = () => { db = req.result; resolve(db); };
+        req.onupgradeneeded = (e) => {
+          const d = e.target.result;
+          if (!d.objectStoreNames.contains('categorias')) d.createObjectStore('categorias', { keyPath: 'id', autoIncrement: true });
+          if (!d.objectStoreNames.contains('produtos')) {
+            const s = d.createObjectStore('produtos', { keyPath: 'id', autoIncrement: true });
+            s.createIndex('categoriaId', 'categoriaId', { unique: false });
+          }
+          if (!d.objectStoreNames.contains('orcamentos')) {
+            const s = d.createObjectStore('orcamentos', { keyPath: 'id', autoIncrement: true });
+            s.createIndex('produtoId', 'produtoId', { unique: false });
+          }
+        };
+      });
+    }
+
+    function dbGetAll(store) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(store, 'readonly');
+        const req = tx.objectStore(store).getAll();
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+    function dbGetByIndex(store, indexName, value) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(store, 'readonly');
+        const req = tx.objectStore(store).index(indexName).getAll(value);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+    function dbAdd(store, data) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(store, 'readwrite');
+        const req = tx.objectStore(store).add(data);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+    function dbPut(store, data) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(store, 'readwrite');
+        const req = tx.objectStore(store).put(data);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+    function dbDelete(store, id) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(store, 'readwrite');
+        const req = tx.objectStore(store).delete(id);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function seedData() {
+      const cats = await dbGetAll('categorias');
+      if (cats.length === 0) {
+        const farmaciaId = await dbAdd('categorias', { nome: 'Farmácia', tipo: 'farmacia', descricao: 'Medicamentos, remédios e produtos de saúde', criadoEm: Date.now() });
+        const construcaoId = await dbAdd('categorias', { nome: 'Material de Construção', tipo: 'construcao', descricao: 'Cimento, tintas, ferramentas e materiais', criadoEm: Date.now() });
+        const autoId = await dbAdd('categorias', { nome: 'Automotivo', tipo: 'automotivo', descricao: 'Peças, acessórios e serviços para veículos', criadoEm: Date.now() });
+        const alimId = await dbAdd('categorias', { nome: 'Alimentação', tipo: 'alimentacao', descricao: 'Restaurantes, mercados e delivery', criadoEm: Date.now() });
+
+        const lavitanId = await dbAdd('produtos', { categoriaId: farmaciaId, nome: 'LAVITAN', descricao: 'Suplemento vitamínico - 60 cápsulas', unidade: 'caixa', criadoEm: Date.now() });
+        const farmacias = ['Drogaria São Paulo','Raia Drogasil','Pague Menos','Droga Raia','Farmácia Popular','Drogaria Extra','Ultrafarma','Panvel','Drogaria Venâncio','Farmácia Indiana','Drogaria Rosário','Farmácia Pague Bem','Drogaria Central','Farmácia Boa Vista','Drogaria União'];
+        const precos = [45.90,42.50,48.00,44.90,39.90,46.50,41.00,43.90,47.50,40.00,49.90,38.50,44.00,42.00,45.00];
+        for (let i=0;i<farmacias.length;i++) {
+          await dbAdd('orcamentos', { produtoId: lavitanId, fornecedor: farmacias[i], preco: precos[i], quantidade: 1, observacao: '', data: new Date().toISOString().split('T')[0], criadoEm: Date.now() });
+        }
+
+        const cimentoId = await dbAdd('produtos', { categoriaId: construcaoId, nome: 'Cimento CP-II 50kg', descricao: 'Cimento Portland composto', unidade: 'saco', criadoEm: Date.now() });
+        const lojas = ['Leroy Merlin','Casa do Construtor','Telha Norte','MadeiraMadeira','Depósito Central'];
+        const precosC = [32.90,31.50,33.00,30.90,34.50];
+        for (let i=0;i<lojas.length;i++) {
+          await dbAdd('orcamentos', { produtoId: cimentoId, fornecedor: lojas[i], preco: precosC[i], quantidade: 1, observacao: '', data: new Date().toISOString().split('T')[0], criadoEm: Date.now() });
+        }
+      }
+    }
+
+    function formatMoney(v) { return 'R$ ' + v.toFixed(2).replace('.', ','); }
+    function toast(msg, type='info') {
+      const c = document.getElementById('toastContainer');
+      const el = document.createElement('div'); el.className = 'toast';
+      el.style.borderColor = type==='success'?'var(--success)':type==='danger'?'var(--danger)':'var(--border)';
+      el.textContent = msg; c.appendChild(el);
+      setTimeout(()=>{el.style.opacity='0';setTimeout(()=>el.remove(),300);},2500);
+    }
+    function openModal(id) { document.getElementById(id).classList.add('active'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+    async function renderHome() {
+      const categorias = await dbGetAll('categorias');
+      const produtos = await dbGetAll('produtos');
+      const orcamentos = await dbGetAll('orcamentos');
+      const totalOrcamentos = orcamentos.length;
+      const totalProdutos = produtos.length;
+
+      let html = `
+        <div class="header">
+          <div class="header-title">OrçaFácil</div>
+          <div class="header-actions">
+            <button class="icon-btn" onclick="exportData()" title="Exportar">${ICONS.download}</button>
+            <button class="icon-btn" onclick="document.getElementById('importFile').click()" title="Importar">${ICONS.upload}</button>
+            <input type="file" id="importFile" style="display:none" accept=".json" onchange="importData(this)">
+          </div>
+        </div>
+        <div class="content">
+          <div class="stats-row">
+            <div class="stat-box"><div class="stat-value">${categorias.length}</div><div class="stat-label">Categorias</div></div>
+            <div class="stat-box"><div class="stat-value">${totalProdutos}</div><div class="stat-label">Produtos</div></div>
+            <div class="stat-box"><div class="stat-value">${totalOrcamentos}</div><div class="stat-label">Orçamentos</div></div>
+          </div>
+          <div class="section-title">Categorias</div>
+      `;
+
+      if (categorias.length === 0) {
+        html += `<div class="empty"><div class="empty-icon">📂</div><div class="empty-title">Nenhuma categoria</div><div class="empty-text">Adicione sua primeira categoria de orçamento</div></div>`;
+      } else {
+        for (const cat of categorias) {
+          const catProdutos = produtos.filter(p => p.categoriaId === cat.id);
+          const catOrcamentos = orcamentos.filter(o => catProdutos.some(p => p.id === o.produtoId));
+          const info = CATEGORIA_ICONS[cat.tipo] || CATEGORIA_ICONS.outros;
+          html += `
+            <div class="card" onclick="navigate('categoria', ${cat.id})">
+              <div class="card-header">
+                <div class="card-icon" style="background:${info.bg};color:${info.color}">${ICONS[info.icon]}</div>
+                <div><div class="card-title">${cat.nome}</div><div class="card-meta">${cat.descricao || ''}</div></div>
+              </div>
+              <div class="card-footer">
+                <div class="card-stat"><strong>${catProdutos.length}</strong> produtos · <strong>${catOrcamentos.length}</strong> orçamentos</div>
+                <span class="badge badge-success">${catOrcamentos.length > 0 ? 'Ativo' : 'Novo'}</span>
+              </div>
+            </div>`;
+        }
+      }
+
+      html += `</div><button class="fab" onclick="openModal('modalCategoria')">${ICONS.plus}</button>`;
+
+      html += `
+        <div class="modal-overlay" id="modalCategoria">
+          <div class="modal">
+            <div class="modal-header"><div class="modal-title">Nova Categoria</div><button class="icon-btn" onclick="closeModal('modalCategoria')">${ICONS.close}</button></div>
+            <div class="modal-body">
+              <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="catNome" placeholder="Ex: Farmácia"></div>
+              <div class="form-group"><label class="form-label">Tipo / Ícone</label>
+                <select class="form-select" id="catTipo">
+                  <option value="farmacia">💊 Farmácia</option><option value="construcao">🔨 Construção</option>
+                  <option value="automotivo">🚗 Automotivo</option><option value="alimentacao">🍽️ Alimentação</option>
+                  <option value="vestuario">👕 Vestuário</option><option value="eletronicos">📱 Eletrônicos</option>
+                  <option value="presentes">🎁 Presentes</option><option value="outros">🏷️ Outros</option>
+                </select>
+              </div>
+              <div class="form-group"><label class="form-label">Descrição (opcional)</label><input class="form-input" id="catDesc" placeholder="Ex: Medicamentos e produtos de saúde"></div>
+              <button class="btn btn-primary" onclick="salvarCategoria()">Criar Categoria</button>
+            </div>
+          </div>
+        </div>`;
+
+      document.getElementById('app').innerHTML = html;
+    }
+
+    async function renderCategoria(categoriaId) {
+      const categoria = (await dbGetAll('categorias')).find(c => c.id === categoriaId);
+      const produtos = await dbGetByIndex('produtos', 'categoriaId', categoriaId);
+      const orcamentos = await dbGetAll('orcamentos');
+      const info = CATEGORIA_ICONS[categoria.tipo] || CATEGORIA_ICONS.outros;
+
+      let html = `
+        <div class="header">
+          <div class="header-actions"><button class="icon-btn" onclick="navigate('home')">${ICONS.back}</button></div>
+          <div class="header-title">${categoria.nome}</div>
+          <div class="header-actions">
+            <button class="icon-btn" onclick="openModal('modalEditCategoria')" title="Editar">${ICONS.edit}</button>
+            <button class="icon-btn" onclick="excluirCategoria(${categoria.id})" title="Excluir">${ICONS.trash}</button>
+          </div>
+        </div>
+        <div class="breadcrumb">
+          <a onclick="navigate('home')">Início</a><span class="breadcrumb-sep">›</span><span>${categoria.nome}</span>
+        </div>
+        <div class="content">
+          <div class="section-title">Produtos (${produtos.length})</div>
+      `;
+
+      if (produtos.length === 0) {
+        html += `<div class="empty"><div class="empty-icon">📦</div><div class="empty-title">Nenhum produto</div><div class="empty-text">Adicione o primeiro produto para começar os orçamentos</div></div>`;
+      } else {
+        for (const prod of produtos) {
+          const prodOrcs = orcamentos.filter(o => o.produtoId === prod.id);
+          const menorPreco = prodOrcs.length > 0 ? Math.min(...prodOrcs.map(o => o.preco)) : null;
+          html += `
+            <div class="card" onclick="navigate('produto', ${categoria.id}, ${prod.id})">
+              <div class="card-header">
+                <div class="card-icon" style="background:${info.bg};color:${info.color}">${ICONS[info.icon]}</div>
+                <div style="flex:1;min-width:0"><div class="card-title">${prod.nome}</div><div class="card-meta">${prod.descricao || ''}</div></div>
+              </div>
+              <div class="card-footer">
+                <div class="card-stat"><strong>${prodOrcs.length}</strong> orçamentos</div>
+                ${menorPreco !== null ? `<span class="badge badge-success">${formatMoney(menorPreco)}</span>` : '<span class="badge badge-warning">Sem orçamento</span>'}
+              </div>
+            </div>`;
+        }
+      }
+
+      html += `</div><button class="fab" onclick="openModal('modalProduto')">${ICONS.plus}</button>`;
+
+      html += `
+        <div class="modal-overlay" id="modalProduto">
+          <div class="modal">
+            <div class="modal-header"><div class="modal-title">Novo Produto</div><button class="icon-btn" onclick="closeModal('modalProduto')">${ICONS.close}</button></div>
+            <div class="modal-body">
+              <div class="form-group"><label class="form-label">Nome do Produto</label><input class="form-input" id="prodNome" placeholder="Ex: LAVITAN"></div>
+              <div class="form-group"><label class="form-label">Descrição</label><input class="form-input" id="prodDesc" placeholder="Ex: Suplemento vitamínico - 60 cápsulas"></div>
+              <div class="form-group"><label class="form-label">Unidade</label>
+                <select class="form-select" id="prodUnidade">
+                  <option value="unidade">Unidade</option><option value="caixa">Caixa</option><option value="saco">Saco</option>
+                  <option value="kg">Quilograma</option><option value="litro">Litro</option><option value="metro">Metro</option>
+                  <option value="pacote">Pacote</option><option value="kit">Kit</option>
+                </select>
+              </div>
+              <button class="btn btn-primary" onclick="salvarProduto(${categoria.id})">Adicionar Produto</button>
+            </div>
+          </div>
+        </div>`;
+
+      html += `
+        <div class="modal-overlay" id="modalEditCategoria">
+          <div class="modal">
+            <div class="modal-header"><div class="modal-title">Editar Categoria</div><button class="icon-btn" onclick="closeModal('modalEditCategoria')">${ICONS.close}</button></div>
+            <div class="modal-body">
+              <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="editCatNome" value="${categoria.nome}"></div>
+              <div class="form-group"><label class="form-label">Descrição</label><input class="form-input" id="editCatDesc" value="${categoria.descricao || ''}"></div>
+              <button class="btn btn-primary" onclick="atualizarCategoria(${categoria.id})">Salvar Alterações</button>
+            </div>
+          </div>
+        </div>`;
+
+      document.getElementById('app').innerHTML = html;
+    }
+
+    async function renderProduto(categoriaId, produtoId) {
+      const categoria = (await dbGetAll('categorias')).find(c => c.id === categoriaId);
+      const produto = (await dbGetAll('produtos')).find(p => p.id === produtoId);
+      const orcamentos = await dbGetByIndex('orcamentos', 'produtoId', produtoId);
+      const sorted = [...orcamentos].sort((a, b) => a.preco - b.preco);
+      const info = CATEGORIA_ICONS[categoria.tipo] || CATEGORIA_ICONS.outros;
+
+      let html = `
+        <div class="header">
+          <div class="header-actions"><button class="icon-btn" onclick="navigate('categoria', ${categoriaId})">${ICONS.back}</button></div>
+          <div class="header-title" style="font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px">${produto.nome}</div>
+          <div class="header-actions">
+            <button class="icon-btn" onclick="openModal('modalEditProduto')" title="Editar">${ICONS.edit}</button>
+            <button class="icon-btn" onclick="excluirProduto(${produto.id}, ${categoriaId})" title="Excluir">${ICONS.trash}</button>
+          </div>
+        </div>
+        <div class="breadcrumb">
+          <a onclick="navigate('home')">Início</a><span class="breadcrumb-sep">›</span>
+          <a onclick="navigate('categoria', ${categoriaId})">${categoria.nome}</a><span class="breadcrumb-sep">›</span><span>${produto.nome}</span>
+        </div>
+        <div class="content">
+      `;
+
+      if (sorted.length > 0) {
+        const menor = sorted[0].preco; const maior = sorted[sorted.length - 1].preco; const economia = maior - menor;
+        html += `
+          <div class="stats-row">
+            <div class="stat-box"><div class="stat-value" style="color:var(--success)">${formatMoney(menor)}</div><div class="stat-label">Menor preço</div></div>
+            <div class="stat-box"><div class="stat-value" style="color:var(--danger)">${formatMoney(maior)}</div><div class="stat-label">Maior preço</div></div>
+            <div class="stat-box"><div class="stat-value" style="color:var(--warning)">${formatMoney(economia)}</div><div class="stat-label">Economia</div></div>
+          </div>`;
+      }
+
+      html += `<div class="section-title">Orçamentos (${sorted.length})</div>`;
+
+      if (sorted.length === 0) {
+        html += `<div class="empty"><div class="empty-icon">🏷️</div><div class="empty-title">Nenhum orçamento</div><div class="empty-text">Adicione orçamentos de diferentes fornecedores</div></div>`;
+      } else {
+        sorted.forEach((o, i) => {
+          const rank = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
+          const isBest = i === 0;
+          html += `
+            <div class="orc-item ${isBest ? 'best' : ''}">
+              <div class="orc-rank ${rank}">${i + 1}º</div>
+              <div class="orc-info">
+                <div class="orc-fornecedor">${o.fornecedor}</div>
+                <div class="orc-detalhes">${o.quantidade > 1 ? o.quantidade + ' ' + produto.unidade + 's · ' : ''}${o.data}${o.observacao ? ' · ' + o.observacao : ''}</div>
+              </div>
+              <div class="orc-preco ${isBest ? 'best' : ''}">${formatMoney(o.preco)}</div>
+              <div class="orc-actions">
+                <button class="icon-btn" onclick="editarOrcamento(${o.id}, ${categoriaId}, ${produtoId})" title="Editar">${ICONS.edit}</button>
+                <button class="icon-btn" onclick="excluirOrcamento(${o.id}, ${categoriaId}, ${produtoId})" title="Excluir">${ICONS.trash}</button>
+              </div>
+            </div>`;
+        });
+      }
+
+      html += `</div><button class="fab" onclick="openModal('modalOrcamento')">${ICONS.plus}</button>`;
+
+      const hoje = new Date().toISOString().split('T')[0];
+      html += `
+        <div class="modal-overlay" id="modalOrcamento">
+          <div class="modal">
+            <div class="modal-header"><div class="modal-title">Novo Orçamento</div><button class="icon-btn" onclick="closeModal('modalOrcamento')">${ICONS.close}</button></div>
+            <div class="modal-body">
+              <div class="form-group"><label class="form-label">Fornecedor / Loja</label><input class="form-input" id="orcFornecedor" placeholder="Ex: Drogaria São Paulo"></div>
+              <div class="form-group"><label class="form-label">Preço (R$)</label><input class="form-input" id="orcPreco" type="number" step="0.01" placeholder="0,00"></div>
+              <div class="form-group"><label class="form-label">Quantidade</label><input class="form-input" id="orcQtd" type="number" value="1" min="1"></div>
+              <div class="form-group"><label class="form-label">Data do orçamento</label><input class="form-input" id="orcData" type="date" value="${hoje}"></div>
+              <div class="form-group"><label class="form-label">Observação (opcional)</label><input class="form-input" id="orcObs" placeholder="Ex: Promoção válida até..."></div>
+              <button class="btn btn-primary" onclick="salvarOrcamento(${produtoId}, ${categoriaId})">Salvar Orçamento</button>
+            </div>
+          </div>
+        </div>`;
+
+      html += `
+        <div class="modal-overlay" id="modalEditProduto">
+          <div class="modal">
+            <div class="modal-header"><div class="modal-title">Editar Produto</div><button class="icon-btn" onclick="closeModal('modalEditProduto')">${ICONS.close}</button></div>
+            <div class="modal-body">
+              <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="editProdNome" value="${produto.nome}"></div>
+              <div class="form-group"><label class="form-label">Descrição</label><input class="form-input" id="editProdDesc" value="${produto.descricao || ''}"></div>
+              <button class="btn btn-primary" onclick="atualizarProduto(${produto.id}, ${categoriaId})">Salvar Alterações</button>
+            </div>
+          </div>
+        </div>`;
+
+      document.getElementById('app').innerHTML = html;
+    }
+
+    async function salvarCategoria() {
+      const nome = document.getElementById('catNome').value.trim();
+      const tipo = document.getElementById('catTipo').value;
+      const desc = document.getElementById('catDesc').value.trim();
+      if (!nome) { toast('Digite o nome da categoria', 'danger'); return; }
+      await dbAdd('categorias', { nome, tipo, descricao: desc, criadoEm: Date.now() });
+      closeModal('modalCategoria'); toast('Categoria criada!', 'success'); renderHome();
+    }
+
+    async function atualizarCategoria(id) {
+      const nome = document.getElementById('editCatNome').value.trim();
+      const desc = document.getElementById('editCatDesc').value.trim();
+      if (!nome) { toast('Digite o nome', 'danger'); return; }
+      const cat = (await dbGetAll('categorias')).find(c => c.id === id);
+      cat.nome = nome; cat.descricao = desc;
+      await dbPut('categorias', cat);
+      closeModal('modalEditCategoria'); toast('Categoria atualizada!', 'success'); renderCategoria(id);
+    }
+
+    async function excluirCategoria(id) {
+      if (!confirm('Excluir esta categoria e TODOS os produtos e orçamentos?')) return;
+      const produtos = await dbGetByIndex('produtos', 'categoriaId', id);
+      for (const p of produtos) {
+        const orcs = await dbGetByIndex('orcamentos', 'produtoId', p.id);
+        for (const o of orcs) await dbDelete('orcamentos', o.id);
+        await dbDelete('produtos', p.id);
+      }
+      await dbDelete('categorias', id);
+      toast('Categoria excluída', 'success'); navigate('home');
+    }
+
+    async function salvarProduto(categoriaId) {
+      const nome = document.getElementById('prodNome').value.trim();
+      const desc = document.getElementById('prodDesc').value.trim();
+      const unidade = document.getElementById('prodUnidade').value;
+      if (!nome) { toast('Digite o nome do produto', 'danger'); return; }
+      await dbAdd('produtos', { categoriaId, nome, descricao: desc, unidade, criadoEm: Date.now() });
+      closeModal('modalProduto'); toast('Produto adicionado!', 'success'); renderCategoria(categoriaId);
+    }
+
+    async function atualizarProduto(id, categoriaId) {
+      const nome = document.getElementById('editProdNome').value.trim();
+      const desc = document.getElementById('editProdDesc').value.trim();
+      if (!nome) { toast('Digite o nome', 'danger'); return; }
+      const prod = (await dbGetAll('produtos')).find(p => p.id === id);
+      prod.nome = nome; prod.descricao = desc;
+      await dbPut('produtos', prod);
+      closeModal('modalEditProduto'); toast('Produto atualizado!', 'success'); renderProduto(categoriaId, id);
+    }
+
+    async function excluirProduto(id, categoriaId) {
+      if (!confirm('Excluir este produto e todos os seus orçamentos?')) return;
+      const orcs = await dbGetByIndex('orcamentos', 'produtoId', id);
+      for (const o of orcs) await dbDelete('orcamentos', o.id);
+      await dbDelete('produtos', id);
+      toast('Produto excluído', 'success'); renderCategoria(categoriaId);
+    }
+
+    async function salvarOrcamento(produtoId, categoriaId) {
+      const fornecedor = document.getElementById('orcFornecedor').value.trim();
+      const preco = parseFloat(document.getElementById('orcPreco').value);
+      const quantidade = parseInt(document.getElementById('orcQtd').value) || 1;
+      const data = document.getElementById('orcData').value;
+      const observacao = document.getElementById('orcObs').value.trim();
+      if (!fornecedor) { toast('Digite o fornecedor', 'danger'); return; }
+      if (isNaN(preco) || preco <= 0) { toast('Digite um preço válido', 'danger'); return; }
+      await dbAdd('orcamentos', { produtoId, fornecedor, preco, quantidade, data, observacao, criadoEm: Date.now() });
+      closeModal('modalOrcamento'); toast('Orçamento salvo!', 'success'); renderProduto(categoriaId, produtoId);
+    }
+
+    async function editarOrcamento(id, categoriaId, produtoId) {
+      const o = (await dbGetAll('orcamentos')).find(x => x.id === id);
+      const novoPreco = prompt('Novo preço (R$):', o.preco);
+      if (novoPreco === null) return;
+      const preco = parseFloat(novoPreco);
+      if (isNaN(preco) || preco <= 0) { toast('Preço inválido', 'danger'); return; }
+      o.preco = preco; await dbPut('orcamentos', o);
+      toast('Orçamento atualizado!', 'success'); renderProduto(categoriaId, produtoId);
+    }
+
+    async function excluirOrcamento(id, categoriaId, produtoId) {
+      if (!confirm('Excluir este orçamento?')) return;
+      await dbDelete('orcamentos', id);
+      toast('Orçamento excluído', 'success'); renderProduto(categoriaId, produtoId);
+    }
+
+    async function exportData() {
+      const data = {
+        categorias: await dbGetAll('categorias'),
+        produtos: await dbGetAll('produtos'),
+        orcamentos: await dbGetAll('orcamentos'),
+        exportadoEm: new Date().toISOString()
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `orcafacil-backup-${new Date().toISOString().split('T')[0]}.json`; a.click();
+      URL.revokeObjectURL(url); toast('Backup exportado!', 'success');
+    }
+
+    async function importData(input) {
+      const file = input.files[0]; if (!file) return;
+      const text = await file.text();
+      try {
+        const data = JSON.parse(text);
+        if (data.categorias) for (const c of data.categorias) await dbPut('categorias', c);
+        if (data.produtos) for (const p of data.produtos) await dbPut('produtos', p);
+        if (data.orcamentos) for (const o of data.orcamentos) await dbPut('orcamentos', o);
+        toast('Backup importado com sucesso!', 'success'); navigate('home');
+      } catch (e) { toast('Arquivo inválido', 'danger'); }
+      input.value = '';
+    }
+
+    function navigate(view, categoriaId, produtoId) {
+      state = { view, categoriaId, produtoId };
+      if (view === 'home') renderHome();
+      else if (view === 'categoria') renderCategoria(categoriaId);
+      else if (view === 'produto') renderProduto(categoriaId, produtoId);
+    }
+
+    async function init() {
+      await initDB(); await seedData(); renderHome();
+      if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+    }
+    init();
+  </script>
+</body>
+</html>
