@@ -1,11 +1,24 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <base href="./">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OrçaFácil - Controle de Orçamentos</title>
-  <link rel="manifest" href="./manifest.json">
+  <script>
+    // Garante que o app funcione em qualquer subdiretório do GitHub Pages
+    (function() {
+      const path = window.location.pathname;
+      // Se estiver em uma rota que não existe (ex: /orcamento/produto/123), redireciona pro index
+      if (path.endsWith('.html') || path.endsWith('/')) return;
+      // Se o path tem algo depois do repo name que não é um arquivo conhecido
+      const parts = path.split('/').filter(Boolean);
+      if (parts.length > 1 && !path.includes('.')) {
+        window.location.replace(path.split('/').slice(0, -1).join('/') + '/');
+      }
+    })();
+  </script>
+
+  <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0f0f0f">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -661,7 +674,7 @@
 
     async function init() {
       await initDB(); await seedData(); renderHome();
-      if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+      if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
     }
     init();
   </script>

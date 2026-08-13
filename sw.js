@@ -1,11 +1,9 @@
-const CACHE_NAME = 'orcafacil-v2';
+const CACHE_NAME = 'orcafacil-v3';
 
-// Detecta o caminho base automaticamente
-const BASE = self.location.pathname.replace(/\/sw\.js$/, '') || '';
 const urlsToCache = [
-  BASE + '/',
-  BASE + '/index.html',
-  BASE + '/manifest.json'
+  './',
+  './index.html',
+  './manifest.json'
 ];
 
 self.addEventListener('install', (event) => {
@@ -29,17 +27,12 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
-
-  // Só intercepta requisições do mesmo domínio/origem
-  if (url.origin !== self.location.origin) return;
-
   event.respondWith(
     caches.match(event.request).then((response) => {
       if (response) return response;
       return fetch(event.request).catch(() => {
-        if (event.request.mode === 'navigate' || event.request.destination === 'document') {
-          return caches.match(BASE + '/index.html');
+        if (event.request.mode === 'navigate') {
+          return caches.match('./index.html');
         }
       });
     })
