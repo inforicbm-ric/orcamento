@@ -4,20 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OrçaFácil - Controle de Orçamentos</title>
-  <script>
-    // Garante que o app funcione em qualquer subdiretório do GitHub Pages
-    (function() {
-      const path = window.location.pathname;
-      // Se estiver em uma rota que não existe (ex: /orcamento/produto/123), redireciona pro index
-      if (path.endsWith('.html') || path.endsWith('/')) return;
-      // Se o path tem algo depois do repo name que não é um arquivo conhecido
-      const parts = path.split('/').filter(Boolean);
-      if (parts.length > 1 && !path.includes('.')) {
-        window.location.replace(path.split('/').slice(0, -1).join('/') + '/');
-      }
-    })();
-  </script>
-
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0f0f0f">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -76,6 +62,7 @@
     .badge-success { background: var(--success-soft); color: var(--success); }
     .badge-warning { background: var(--warning-soft); color: var(--warning); }
     .badge-danger { background: var(--danger-soft); color: var(--danger); }
+    .badge-info { background: rgba(96,165,250,0.12); color: var(--info); }
     .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
     .stat-box {
       background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
@@ -86,7 +73,9 @@
     .section-title {
       font-size: 13px; font-weight: 600; color: var(--text-secondary);
       text-transform: uppercase; letter-spacing: 0.8px; margin: 24px 0 12px;
+      display: flex; align-items: center; justify-content: space-between;
     }
+    .section-title a { color: var(--info); font-size: 12px; text-transform: none; letter-spacing: 0; cursor: pointer; }
     .fab {
       position: fixed; bottom: 24px; right: 24px; width: 56px; height: 56px; border-radius: 50%;
       background: var(--accent); color: var(--bg); border: none; cursor: pointer;
@@ -152,6 +141,17 @@
     .orc-actions { display: flex; gap: 6px; opacity: 0; transition: opacity 0.15s; }
     .orc-item:hover .orc-actions { opacity: 1; }
     .orc-actions .icon-btn { width: 32px; height: 32px; }
+    .forn-item {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+      padding: 12px 16px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px;
+    }
+    .forn-item:hover { border-color: #444; }
+    .forn-icon { width: 36px; height: 36px; border-radius: 50%; background: var(--surface-raised); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+    .forn-info { flex: 1; min-width: 0; }
+    .forn-nome { font-size: 15px; font-weight: 600; }
+    .forn-contato { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
+    .forn-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s; }
+    .forn-item:hover .forn-actions { opacity: 1; }
     .empty { text-align: center; padding: 48px 20px; color: var(--text-muted); }
     .empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
     .empty-title { font-size: 16px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; }
@@ -172,6 +172,13 @@
       padding: 12px 20px; font-size: 14px; font-weight: 500; box-shadow: var(--shadow); pointer-events: auto; animation: toastIn 0.3s ease;
     }
     @keyframes toastIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 0; }
+    .tab {
+      padding: 10px 16px; font-size: 14px; font-weight: 500; color: var(--text-secondary);
+      cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s;
+    }
+    .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+    .tab:hover:not(.active) { color: var(--text); }
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -183,7 +190,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <script>
-    const DB_NAME = 'OrcaFacilDB'; const DB_VERSION = 1; let db = null;
+    const DB_NAME = 'OrcaFacilDB'; const DB_VERSION = 2; let db = null;
 
     const ICONS = {
       plus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`,
@@ -202,6 +209,7 @@
       shirt: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.47a1 1 0 00.99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.84l.58-3.47a2 2 0 00-1.34-2.23z"/></svg>`,
       phone: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><path d="M12 18h.01"/></svg>`,
       gift: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>`,
+      building: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l8-4 8 4v14M8 21v-4a2 2 0 012-2h4a2 2 0 012 2v4M9 11h2M9 7h2M13 11h2M13 7h2"/></svg>`,
     };
 
     const CATEGORIA_ICONS = {
@@ -215,7 +223,7 @@
       outros: { icon: 'tag', color: '#6b7280', bg: 'rgba(107,114,128,0.12)' },
     };
 
-    let state = { view: 'home', categoriaId: null, produtoId: null };
+    let state = { view: 'home', categoriaId: null, produtoId: null, tab: 'produtos' };
 
     function initDB() {
       return new Promise((resolve, reject) => {
@@ -232,6 +240,10 @@
           if (!d.objectStoreNames.contains('orcamentos')) {
             const s = d.createObjectStore('orcamentos', { keyPath: 'id', autoIncrement: true });
             s.createIndex('produtoId', 'produtoId', { unique: false });
+          }
+          if (!d.objectStoreNames.contains('fornecedores')) {
+            const s = d.createObjectStore('fornecedores', { keyPath: 'id', autoIncrement: true });
+            s.createIndex('categoriaId', 'categoriaId', { unique: false });
           }
         };
       });
@@ -286,18 +298,54 @@
         const autoId = await dbAdd('categorias', { nome: 'Automotivo', tipo: 'automotivo', descricao: 'Peças, acessórios e serviços para veículos', criadoEm: Date.now() });
         const alimId = await dbAdd('categorias', { nome: 'Alimentação', tipo: 'alimentacao', descricao: 'Restaurantes, mercados e delivery', criadoEm: Date.now() });
 
-        const lavitanId = await dbAdd('produtos', { categoriaId: farmaciaId, nome: 'LAVITAN', descricao: 'Suplemento vitamínico - 60 cápsulas', unidade: 'caixa', criadoEm: Date.now() });
-        const farmacias = ['Drogaria São Paulo','Raia Drogasil','Pague Menos','Droga Raia','Farmácia Popular','Drogaria Extra','Ultrafarma','Panvel','Drogaria Venâncio','Farmácia Indiana','Drogaria Rosário','Farmácia Pague Bem','Drogaria Central','Farmácia Boa Vista','Drogaria União'];
-        const precos = [45.90,42.50,48.00,44.90,39.90,46.50,41.00,43.90,47.50,40.00,49.90,38.50,44.00,42.00,45.00];
-        for (let i=0;i<farmacias.length;i++) {
-          await dbAdd('orcamentos', { produtoId: lavitanId, fornecedor: farmacias[i], preco: precos[i], quantidade: 1, observacao: '', data: new Date().toISOString().split('T')[0], criadoEm: Date.now() });
+        // Fornecedores de Farmácia
+        const farmacias = [
+          { nome: 'Drogaria São Paulo', telefone: '', endereco: '' },
+          { nome: 'Raia Drogasil', telefone: '', endereco: '' },
+          { nome: 'Pague Menos', telefone: '', endereco: '' },
+          { nome: 'Droga Raia', telefone: '', endereco: '' },
+          { nome: 'Farmácia Popular', telefone: '', endereco: '' },
+          { nome: 'Drogaria Extra', telefone: '', endereco: '' },
+          { nome: 'Ultrafarma', telefone: '', endereco: '' },
+          { nome: 'Panvel', telefone: '', endereco: '' },
+          { nome: 'Drogaria Venâncio', telefone: '', endereco: '' },
+          { nome: 'Farmácia Indiana', telefone: '', endereco: '' },
+          { nome: 'Drogaria Rosário', telefone: '', endereco: '' },
+          { nome: 'Farmácia Pague Bem', telefone: '', endereco: '' },
+          { nome: 'Drogaria Central', telefone: '', endereco: '' },
+          { nome: 'Farmácia Boa Vista', telefone: '', endereco: '' },
+          { nome: 'Drogaria União', telefone: '', endereco: '' },
+        ];
+        const fornIds = [];
+        for (const f of farmacias) {
+          fornIds.push(await dbAdd('fornecedores', { categoriaId: farmaciaId, nome: f.nome, telefone: f.telefone, endereco: f.endereco, criadoEm: Date.now() }));
         }
 
+        // Fornecedores de Construção
+        const lojasConst = [
+          { nome: 'Leroy Merlin', telefone: '', endereco: '' },
+          { nome: 'Casa do Construtor', telefone: '', endereco: '' },
+          { nome: 'Telha Norte', telefone: '', endereco: '' },
+          { nome: 'MadeiraMadeira', telefone: '', endereco: '' },
+          { nome: 'Depósito Central', telefone: '', endereco: '' },
+        ];
+        const fornConstIds = [];
+        for (const f of lojasConst) {
+          fornConstIds.push(await dbAdd('fornecedores', { categoriaId: construcaoId, nome: f.nome, telefone: f.telefone, endereco: f.endereco, criadoEm: Date.now() }));
+        }
+
+        // Produto LAVITAN
+        const lavitanId = await dbAdd('produtos', { categoriaId: farmaciaId, nome: 'LAVITAN', descricao: 'Suplemento vitamínico - 60 cápsulas', unidade: 'caixa', criadoEm: Date.now() });
+        const precos = [45.90,42.50,48.00,44.90,39.90,46.50,41.00,43.90,47.50,40.00,49.90,38.50,44.00,42.00,45.00];
+        for (let i=0;i<farmacias.length;i++) {
+          await dbAdd('orcamentos', { produtoId: lavitanId, fornecedor: farmacias[i].nome, preco: precos[i], quantidade: 1, observacao: '', data: new Date().toISOString().split('T')[0], criadoEm: Date.now() });
+        }
+
+        // Produto Cimento
         const cimentoId = await dbAdd('produtos', { categoriaId: construcaoId, nome: 'Cimento CP-II 50kg', descricao: 'Cimento Portland composto', unidade: 'saco', criadoEm: Date.now() });
-        const lojas = ['Leroy Merlin','Casa do Construtor','Telha Norte','MadeiraMadeira','Depósito Central'];
         const precosC = [32.90,31.50,33.00,30.90,34.50];
-        for (let i=0;i<lojas.length;i++) {
-          await dbAdd('orcamentos', { produtoId: cimentoId, fornecedor: lojas[i], preco: precosC[i], quantidade: 1, observacao: '', data: new Date().toISOString().split('T')[0], criadoEm: Date.now() });
+        for (let i=0;i<lojasConst.length;i++) {
+          await dbAdd('orcamentos', { produtoId: cimentoId, fornecedor: lojasConst[i].nome, preco: precosC[i], quantidade: 1, observacao: '', data: new Date().toISOString().split('T')[0], criadoEm: Date.now() });
         }
       }
     }
@@ -317,8 +365,10 @@
       const categorias = await dbGetAll('categorias');
       const produtos = await dbGetAll('produtos');
       const orcamentos = await dbGetAll('orcamentos');
+      const fornecedores = await dbGetAll('fornecedores');
       const totalOrcamentos = orcamentos.length;
       const totalProdutos = produtos.length;
+      const totalFornecedores = fornecedores.length;
 
       let html = `
         <div class="header">
@@ -344,6 +394,7 @@
         for (const cat of categorias) {
           const catProdutos = produtos.filter(p => p.categoriaId === cat.id);
           const catOrcamentos = orcamentos.filter(o => catProdutos.some(p => p.id === o.produtoId));
+          const catForns = fornecedores.filter(f => f.categoriaId === cat.id);
           const info = CATEGORIA_ICONS[cat.tipo] || CATEGORIA_ICONS.outros;
           html += `
             <div class="card" onclick="navigate('categoria', ${cat.id})">
@@ -352,7 +403,7 @@
                 <div><div class="card-title">${cat.nome}</div><div class="card-meta">${cat.descricao || ''}</div></div>
               </div>
               <div class="card-footer">
-                <div class="card-stat"><strong>${catProdutos.length}</strong> produtos · <strong>${catOrcamentos.length}</strong> orçamentos</div>
+                <div class="card-stat"><strong>${catProdutos.length}</strong> prod · <strong>${catForns.length}</strong> forn · <strong>${catOrcamentos.length}</strong> orç</div>
                 <span class="badge badge-success">${catOrcamentos.length > 0 ? 'Ativo' : 'Novo'}</span>
               </div>
             </div>`;
@@ -387,8 +438,10 @@
     async function renderCategoria(categoriaId) {
       const categoria = (await dbGetAll('categorias')).find(c => c.id === categoriaId);
       const produtos = await dbGetByIndex('produtos', 'categoriaId', categoriaId);
+      const fornecedores = await dbGetByIndex('fornecedores', 'categoriaId', categoriaId);
       const orcamentos = await dbGetAll('orcamentos');
       const info = CATEGORIA_ICONS[categoria.tipo] || CATEGORIA_ICONS.outros;
+      const tab = state.tab || 'produtos';
 
       let html = `
         <div class="header">
@@ -403,49 +456,89 @@
           <a onclick="navigate('home')">Início</a><span class="breadcrumb-sep">›</span><span>${categoria.nome}</span>
         </div>
         <div class="content">
-          <div class="section-title">Produtos (${produtos.length})</div>
+          <div class="tabs">
+            <div class="tab ${tab==='produtos'?'active':''}" onclick="switchTab('produtos')">Produtos (${produtos.length})</div>
+            <div class="tab ${tab==='fornecedores'?'active':''}" onclick="switchTab('fornecedores')">Fornecedores (${fornecedores.length})</div>
+          </div>
       `;
 
-      if (produtos.length === 0) {
-        html += `<div class="empty"><div class="empty-icon">📦</div><div class="empty-title">Nenhum produto</div><div class="empty-text">Adicione o primeiro produto para começar os orçamentos</div></div>`;
-      } else {
-        for (const prod of produtos) {
-          const prodOrcs = orcamentos.filter(o => o.produtoId === prod.id);
-          const menorPreco = prodOrcs.length > 0 ? Math.min(...prodOrcs.map(o => o.preco)) : null;
-          html += `
-            <div class="card" onclick="navigate('produto', ${categoria.id}, ${prod.id})">
-              <div class="card-header">
-                <div class="card-icon" style="background:${info.bg};color:${info.color}">${ICONS[info.icon]}</div>
-                <div style="flex:1;min-width:0"><div class="card-title">${prod.nome}</div><div class="card-meta">${prod.descricao || ''}</div></div>
-              </div>
-              <div class="card-footer">
-                <div class="card-stat"><strong>${prodOrcs.length}</strong> orçamentos</div>
-                ${menorPreco !== null ? `<span class="badge badge-success">${formatMoney(menorPreco)}</span>` : '<span class="badge badge-warning">Sem orçamento</span>'}
-              </div>
-            </div>`;
+      if (tab === 'produtos') {
+        if (produtos.length === 0) {
+          html += `<div class="empty"><div class="empty-icon">📦</div><div class="empty-title">Nenhum produto</div><div class="empty-text">Adicione o primeiro produto para começar os orçamentos</div></div>`;
+        } else {
+          for (const prod of produtos) {
+            const prodOrcs = orcamentos.filter(o => o.produtoId === prod.id);
+            const menorPreco = prodOrcs.length > 0 ? Math.min(...prodOrcs.map(o => o.preco)) : null;
+            html += `
+              <div class="card" onclick="navigate('produto', ${categoria.id}, ${prod.id})">
+                <div class="card-header">
+                  <div class="card-icon" style="background:${info.bg};color:${info.color}">${ICONS[info.icon]}</div>
+                  <div style="flex:1;min-width:0"><div class="card-title">${prod.nome}</div><div class="card-meta">${prod.descricao || ''}</div></div>
+                </div>
+                <div class="card-footer">
+                  <div class="card-stat"><strong>${prodOrcs.length}</strong> orçamentos</div>
+                  ${menorPreco !== null ? `<span class="badge badge-success">${formatMoney(menorPreco)}</span>` : '<span class="badge badge-warning">Sem orçamento</span>'}
+                </div>
+              </div>`;
+          }
         }
-      }
+        html += `</div><button class="fab" onclick="openModal('modalProduto')">${ICONS.plus}</button>`;
 
-      html += `</div><button class="fab" onclick="openModal('modalProduto')">${ICONS.plus}</button>`;
-
-      html += `
-        <div class="modal-overlay" id="modalProduto">
-          <div class="modal">
-            <div class="modal-header"><div class="modal-title">Novo Produto</div><button class="icon-btn" onclick="closeModal('modalProduto')">${ICONS.close}</button></div>
-            <div class="modal-body">
-              <div class="form-group"><label class="form-label">Nome do Produto</label><input class="form-input" id="prodNome" placeholder="Ex: LAVITAN"></div>
-              <div class="form-group"><label class="form-label">Descrição</label><input class="form-input" id="prodDesc" placeholder="Ex: Suplemento vitamínico - 60 cápsulas"></div>
-              <div class="form-group"><label class="form-label">Unidade</label>
-                <select class="form-select" id="prodUnidade">
-                  <option value="unidade">Unidade</option><option value="caixa">Caixa</option><option value="saco">Saco</option>
-                  <option value="kg">Quilograma</option><option value="litro">Litro</option><option value="metro">Metro</option>
-                  <option value="pacote">Pacote</option><option value="kit">Kit</option>
-                </select>
+        html += `
+          <div class="modal-overlay" id="modalProduto">
+            <div class="modal">
+              <div class="modal-header"><div class="modal-title">Novo Produto</div><button class="icon-btn" onclick="closeModal('modalProduto')">${ICONS.close}</button></div>
+              <div class="modal-body">
+                <div class="form-group"><label class="form-label">Nome do Produto</label><input class="form-input" id="prodNome" placeholder="Ex: LAVITAN"></div>
+                <div class="form-group"><label class="form-label">Descrição</label><input class="form-input" id="prodDesc" placeholder="Ex: Suplemento vitamínico - 60 cápsulas"></div>
+                <div class="form-group"><label class="form-label">Unidade</label>
+                  <select class="form-select" id="prodUnidade">
+                    <option value="unidade">Unidade</option><option value="caixa">Caixa</option><option value="saco">Saco</option>
+                    <option value="kg">Quilograma</option><option value="litro">Litro</option><option value="metro">Metro</option>
+                    <option value="pacote">Pacote</option><option value="kit">Kit</option>
+                  </select>
+                </div>
+                <button class="btn btn-primary" onclick="salvarProduto(${categoria.id})">Adicionar Produto</button>
               </div>
-              <button class="btn btn-primary" onclick="salvarProduto(${categoria.id})">Adicionar Produto</button>
             </div>
-          </div>
-        </div>`;
+          </div>`;
+      } else {
+        // Aba Fornecedores
+        html += `<div class="section-title">Fornecedores cadastrados<a onclick="openModal('modalFornecedor')">+ Novo fornecedor</a></div>`;
+        if (fornecedores.length === 0) {
+          html += `<div class="empty"><div class="empty-icon">🏪</div><div class="empty-title">Nenhum fornecedor</div><div class="empty-text">Cadastre as lojas para facilitar seus orçamentos</div></div>`;
+        } else {
+          for (const f of fornecedores) {
+            html += `
+              <div class="forn-item">
+                <div class="forn-icon">🏪</div>
+                <div class="forn-info">
+                  <div class="forn-nome">${f.nome}</div>
+                  ${f.telefone ? `<div class="forn-contato">📞 ${f.telefone}</div>` : ''}
+                  ${f.endereco ? `<div class="forn-contato">📍 ${f.endereco}</div>` : ''}
+                </div>
+                <div class="forn-actions">
+                  <button class="icon-btn" onclick="editarFornecedor(${f.id}, ${categoria.id})" title="Editar">${ICONS.edit}</button>
+                  <button class="icon-btn" onclick="excluirFornecedor(${f.id}, ${categoria.id})" title="Excluir">${ICONS.trash}</button>
+                </div>
+              </div>`;
+          }
+        }
+        html += `</div><button class="fab" onclick="openModal('modalFornecedor')">${ICONS.plus}</button>`;
+
+        html += `
+          <div class="modal-overlay" id="modalFornecedor">
+            <div class="modal">
+              <div class="modal-header"><div class="modal-title">Novo Fornecedor</div><button class="icon-btn" onclick="closeModal('modalFornecedor')">${ICONS.close}</button></div>
+              <div class="modal-body">
+                <div class="form-group"><label class="form-label">Nome da Loja / Fornecedor</label><input class="form-input" id="fornNome" placeholder="Ex: Drogaria São Paulo"></div>
+                <div class="form-group"><label class="form-label">Telefone (opcional)</label><input class="form-input" id="fornTel" placeholder="Ex: (11) 99999-9999"></div>
+                <div class="form-group"><label class="form-label">Endereço (opcional)</label><input class="form-input" id="fornEnd" placeholder="Ex: Rua das Flores, 123"></div>
+                <button class="btn btn-primary" onclick="salvarFornecedor(${categoria.id})">Cadastrar Fornecedor</button>
+              </div>
+            </div>
+          </div>`;
+      }
 
       html += `
         <div class="modal-overlay" id="modalEditCategoria">
@@ -466,8 +559,17 @@
       const categoria = (await dbGetAll('categorias')).find(c => c.id === categoriaId);
       const produto = (await dbGetAll('produtos')).find(p => p.id === produtoId);
       const orcamentos = await dbGetByIndex('orcamentos', 'produtoId', produtoId);
+      const fornecedores = await dbGetByIndex('fornecedores', 'categoriaId', categoriaId);
       const sorted = [...orcamentos].sort((a, b) => a.preco - b.preco);
       const info = CATEGORIA_ICONS[categoria.tipo] || CATEGORIA_ICONS.outros;
+      const hoje = new Date().toISOString().split('T')[0];
+
+      // Options do select de fornecedores
+      let fornOptions = '<option value="">-- Selecione uma loja --</option>';
+      for (const f of fornecedores) {
+        fornOptions += `<option value="${f.nome}">${f.nome}</option>`;
+      }
+      fornOptions += '<option value="__outro__">✏️ Outro (digitar manualmente)</option>';
 
       let html = `
         <div class="header">
@@ -521,13 +623,18 @@
 
       html += `</div><button class="fab" onclick="openModal('modalOrcamento')">${ICONS.plus}</button>`;
 
-      const hoje = new Date().toISOString().split('T')[0];
       html += `
         <div class="modal-overlay" id="modalOrcamento">
           <div class="modal">
             <div class="modal-header"><div class="modal-title">Novo Orçamento</div><button class="icon-btn" onclick="closeModal('modalOrcamento')">${ICONS.close}</button></div>
             <div class="modal-body">
-              <div class="form-group"><label class="form-label">Fornecedor / Loja</label><input class="form-input" id="orcFornecedor" placeholder="Ex: Drogaria São Paulo"></div>
+              <div class="form-group"><label class="form-label">Fornecedor / Loja</label>
+                <select class="form-select" id="orcFornecedorSelect" onchange="toggleFornecedorManual()">${fornOptions}</select>
+              </div>
+              <div class="form-group" id="orcFornManualGroup" style="display:none;">
+                <label class="form-label">Digite o nome do fornecedor</label>
+                <input class="form-input" id="orcFornecedorManual" placeholder="Ex: Drogaria Nova">
+              </div>
               <div class="form-group"><label class="form-label">Preço (R$)</label><input class="form-input" id="orcPreco" type="number" step="0.01" placeholder="0,00"></div>
               <div class="form-group"><label class="form-label">Quantidade</label><input class="form-input" id="orcQtd" type="number" value="1" min="1"></div>
               <div class="form-group"><label class="form-label">Data do orçamento</label><input class="form-input" id="orcData" type="date" value="${hoje}"></div>
@@ -552,6 +659,13 @@
       document.getElementById('app').innerHTML = html;
     }
 
+    function toggleFornecedorManual() {
+      const sel = document.getElementById('orcFornecedorSelect');
+      const grp = document.getElementById('orcFornManualGroup');
+      if (sel.value === '__outro__') { grp.style.display = 'block'; }
+      else { grp.style.display = 'none'; }
+    }
+
     async function salvarCategoria() {
       const nome = document.getElementById('catNome').value.trim();
       const tipo = document.getElementById('catTipo').value;
@@ -572,13 +686,15 @@
     }
 
     async function excluirCategoria(id) {
-      if (!confirm('Excluir esta categoria e TODOS os produtos e orçamentos?')) return;
+      if (!confirm('Excluir esta categoria e TODOS os produtos, fornecedores e orçamentos?')) return;
       const produtos = await dbGetByIndex('produtos', 'categoriaId', id);
       for (const p of produtos) {
         const orcs = await dbGetByIndex('orcamentos', 'produtoId', p.id);
         for (const o of orcs) await dbDelete('orcamentos', o.id);
         await dbDelete('produtos', p.id);
       }
+      const forns = await dbGetByIndex('fornecedores', 'categoriaId', id);
+      for (const f of forns) await dbDelete('fornecedores', f.id);
       await dbDelete('categorias', id);
       toast('Categoria excluída', 'success'); navigate('home');
     }
@@ -610,13 +726,52 @@
       toast('Produto excluído', 'success'); renderCategoria(categoriaId);
     }
 
+    async function salvarFornecedor(categoriaId) {
+      const nome = document.getElementById('fornNome').value.trim();
+      const telefone = document.getElementById('fornTel').value.trim();
+      const endereco = document.getElementById('fornEnd').value.trim();
+      if (!nome) { toast('Digite o nome do fornecedor', 'danger'); return; }
+      await dbAdd('fornecedores', { categoriaId, nome, telefone, endereco, criadoEm: Date.now() });
+      closeModal('modalFornecedor'); toast('Fornecedor cadastrado!', 'success');
+      document.getElementById('fornNome').value = '';
+      document.getElementById('fornTel').value = '';
+      document.getElementById('fornEnd').value = '';
+      renderCategoria(categoriaId);
+    }
+
+    async function editarFornecedor(id, categoriaId) {
+      const f = (await dbGetAll('fornecedores')).find(x => x.id === id);
+      const novoNome = prompt('Nome:', f.nome);
+      if (novoNome === null) return;
+      if (!novoNome.trim()) { toast('Nome inválido', 'danger'); return; }
+      const novoTel = prompt('Telefone:', f.telefone || '');
+      if (novoTel === null) return;
+      const novoEnd = prompt('Endereço:', f.endereco || '');
+      if (novoEnd === null) return;
+      f.nome = novoNome.trim(); f.telefone = novoTel.trim(); f.endereco = novoEnd.trim();
+      await dbPut('fornecedores', f);
+      toast('Fornecedor atualizado!', 'success'); renderCategoria(categoriaId);
+    }
+
+    async function excluirFornecedor(id, categoriaId) {
+      if (!confirm('Excluir este fornecedor?')) return;
+      await dbDelete('fornecedores', id);
+      toast('Fornecedor excluído', 'success'); renderCategoria(categoriaId);
+    }
+
     async function salvarOrcamento(produtoId, categoriaId) {
-      const fornecedor = document.getElementById('orcFornecedor').value.trim();
+      const sel = document.getElementById('orcFornecedorSelect');
+      let fornecedor = '';
+      if (sel.value === '__outro__') {
+        fornecedor = document.getElementById('orcFornecedorManual').value.trim();
+      } else {
+        fornecedor = sel.value;
+      }
       const preco = parseFloat(document.getElementById('orcPreco').value);
       const quantidade = parseInt(document.getElementById('orcQtd').value) || 1;
       const data = document.getElementById('orcData').value;
       const observacao = document.getElementById('orcObs').value.trim();
-      if (!fornecedor) { toast('Digite o fornecedor', 'danger'); return; }
+      if (!fornecedor) { toast('Selecione ou digite o fornecedor', 'danger'); return; }
       if (isNaN(preco) || preco <= 0) { toast('Digite um preço válido', 'danger'); return; }
       await dbAdd('orcamentos', { produtoId, fornecedor, preco, quantidade, data, observacao, criadoEm: Date.now() });
       closeModal('modalOrcamento'); toast('Orçamento salvo!', 'success'); renderProduto(categoriaId, produtoId);
@@ -643,33 +798,22 @@
         categorias: await dbGetAll('categorias'),
         produtos: await dbGetAll('produtos'),
         orcamentos: await dbGetAll('orcamentos'),
+        fornecedores: await dbGetAll('fornecedores'),
         exportadoEm: new Date().toISOString()
       };
       const jsonStr = JSON.stringify(data, null, 2);
       const blob = new Blob([jsonStr], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
-
-      // Tentar Web Share API primeiro (melhor no mobile)
       const fileName = `orcafacil-backup-${new Date().toISOString().split('T')[0]}.json`;
       if (navigator.share && navigator.canShare) {
         try {
           const file = new File([blob], fileName, { type: 'application/json' });
           await navigator.share({ files: [file], title: 'OrçaFácil Backup' });
-          URL.revokeObjectURL(url);
-          toast('Backup compartilhado!', 'success');
-          return;
-        } catch (e) {
-          // Fallback para download
-        }
+          URL.revokeObjectURL(url); toast('Backup compartilhado!', 'success'); return;
+        } catch (e) {}
       }
-
-      // Fallback: download tradicional
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
+      const a = document.createElement('a'); a.href = url; a.download = fileName;
+      a.style.display = 'none'; document.body.appendChild(a); a.click();
       setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
       toast('Backup exportado!', 'success');
     }
@@ -682,26 +826,19 @@
         const text = await file.text();
         const data = JSON.parse(text);
         let count = 0;
-        if (data.categorias && Array.isArray(data.categorias)) {
-          for (const c of data.categorias) { await dbPut('categorias', c); count++; }
-        }
-        if (data.produtos && Array.isArray(data.produtos)) {
-          for (const p of data.produtos) { await dbPut('produtos', p); count++; }
-        }
-        if (data.orcamentos && Array.isArray(data.orcamentos)) {
-          for (const o of data.orcamentos) { await dbPut('orcamentos', o); count++; }
-        }
-        toast(`Backup importado! ${count} itens restaurados`, 'success');
-        navigate('home');
-      } catch (e) {
-        console.error(e);
-        toast('Erro ao importar: arquivo inválido', 'danger');
-      }
+        if (data.categorias && Array.isArray(data.categorias)) { for (const c of data.categorias) { await dbPut('categorias', c); count++; } }
+        if (data.produtos && Array.isArray(data.produtos)) { for (const p of data.produtos) { await dbPut('produtos', p); count++; } }
+        if (data.fornecedores && Array.isArray(data.fornecedores)) { for (const f of data.fornecedores) { await dbPut('fornecedores', f); count++; } }
+        if (data.orcamentos && Array.isArray(data.orcamentos)) { for (const o of data.orcamentos) { await dbPut('orcamentos', o); count++; } }
+        toast(`Backup importado! ${count} itens restaurados`, 'success'); navigate('home');
+      } catch (e) { console.error(e); toast('Erro ao importar: arquivo inválido', 'danger'); }
       input.value = '';
     }
 
+    function switchTab(tab) { state.tab = tab; renderCategoria(state.categoriaId); }
+
     function navigate(view, categoriaId, produtoId) {
-      state = { view, categoriaId, produtoId };
+      state = { view, categoriaId, produtoId, tab: state.tab || 'produtos' };
       if (view === 'home') renderHome();
       else if (view === 'categoria') renderCategoria(categoriaId);
       else if (view === 'produto') renderProduto(categoriaId, produtoId);

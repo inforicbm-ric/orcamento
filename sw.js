@@ -1,4 +1,4 @@
-const CACHE_NAME = 'orcafacil-v3';
+const CACHE_NAME = 'orcafacil-v4';
 
 const urlsToCache = [
   './',
