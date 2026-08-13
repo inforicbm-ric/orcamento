@@ -326,7 +326,7 @@
           <div class="header-actions">
             <button class="icon-btn" onclick="exportData()" title="Exportar">${ICONS.download}</button>
             <button class="icon-btn" onclick="document.getElementById('importFile').click()" title="Importar">${ICONS.upload}</button>
-            <input type="file" id="importFile" style="display:none" accept=".json" onchange="importData(this)">
+            <input type="file" id="importFile" style="display:none" accept=".json,application/json" onchange="importData(this)">
           </div>
         </div>
         <div class="content">
@@ -645,23 +645,58 @@
         orcamentos: await dbGetAll('orcamentos'),
         exportadoEm: new Date().toISOString()
       };
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const jsonStr = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
+
+      // Tentar Web Share API primeiro (melhor no mobile)
+      const fileName = `orcafacil-backup-${new Date().toISOString().split('T')[0]}.json`;
+      if (navigator.share && navigator.canShare) {
+        try {
+          const file = new File([blob], fileName, { type: 'application/json' });
+          await navigator.share({ files: [file], title: 'OrçaFácil Backup' });
+          URL.revokeObjectURL(url);
+          toast('Backup compartilhado!', 'success');
+          return;
+        } catch (e) {
+          // Fallback para download
+        }
+      }
+
+      // Fallback: download tradicional
       const a = document.createElement('a');
-      a.href = url; a.download = `orcafacil-backup-${new Date().toISOString().split('T')[0]}.json`; a.click();
-      URL.revokeObjectURL(url); toast('Backup exportado!', 'success');
+      a.href = url;
+      a.download = fileName;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+      toast('Backup exportado!', 'success');
     }
 
     async function importData(input) {
-      const file = input.files[0]; if (!file) return;
-      const text = await file.text();
+      const file = input.files[0];
+      if (!file) { toast('Nenhum arquivo selecionado', 'danger'); return; }
+      toast('Importando...', 'info');
       try {
+        const text = await file.text();
         const data = JSON.parse(text);
-        if (data.categorias) for (const c of data.categorias) await dbPut('categorias', c);
-        if (data.produtos) for (const p of data.produtos) await dbPut('produtos', p);
-        if (data.orcamentos) for (const o of data.orcamentos) await dbPut('orcamentos', o);
-        toast('Backup importado com sucesso!', 'success'); navigate('home');
-      } catch (e) { toast('Arquivo inválido', 'danger'); }
+        let count = 0;
+        if (data.categorias && Array.isArray(data.categorias)) {
+          for (const c of data.categorias) { await dbPut('categorias', c); count++; }
+        }
+        if (data.produtos && Array.isArray(data.produtos)) {
+          for (const p of data.produtos) { await dbPut('produtos', p); count++; }
+        }
+        if (data.orcamentos && Array.isArray(data.orcamentos)) {
+          for (const o of data.orcamentos) { await dbPut('orcamentos', o); count++; }
+        }
+        toast(`Backup importado! ${count} itens restaurados`, 'success');
+        navigate('home');
+      } catch (e) {
+        console.error(e);
+        toast('Erro ao importar: arquivo inválido', 'danger');
+      }
       input.value = '';
     }
 
