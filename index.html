@@ -95,7 +95,7 @@
     .hero {
       background: linear-gradient(135deg, var(--primary-900) 0%, var(--primary-700) 50%, var(--primary-600) 100%);
       color: #fff;
-      padding: 16px 16px 20px;
+      padding: 16px 16px 28px;
       position: relative;
       overflow: hidden;
     }
@@ -159,7 +159,7 @@
     /* ===== SEARCH ===== */
     .search-wrap {
       padding: 0 16px;
-      margin-top: -12px;
+      margin-top: 4px;
       position: relative;
       z-index: 2;
     }
@@ -918,6 +918,22 @@
       flex-shrink: 0;
       font-variant-numeric: tabular-nums;
     }
+  
+    /* Espaço após hero */
+    .hero + .search-wrap { margin-top: 8px; }
+    .hero + .content { padding-top: 16px; }
+    .cat-header + .breadcrumb { margin-top: 0; }
+    .prod-header + .breadcrumb { margin-top: 0; }
+
+  
+    /* Maiúsculo automático */
+    input[type="text"], input[type="search"], textarea {
+      text-transform: uppercase;
+    }
+    input[type="text"]::placeholder, input[type="search"]::placeholder, textarea::placeholder {
+      text-transform: none;
+    }
+
   </style>
 </head>
 <body>
@@ -969,6 +985,32 @@
     };
 
     let state = { view: 'home', categoriaId: null, produtoId: null, tab: 'produtos' };
+
+    // ===== HISTORY API - NAVEGAÇÃO NATIVA =====
+    let navHistory = [];
+
+    function pushHistory(view, categoriaId, produtoId, tab) {
+      const stateObj = { view, categoriaId, produtoId, tab };
+      navHistory.push(stateObj);
+      history.pushState(stateObj, '', '');
+    }
+
+    window.addEventListener('popstate', (e) => {
+      if (e.state && e.state.view) {
+        // Remove o estado atual da pilha
+        navHistory.pop();
+        const prev = navHistory[navHistory.length - 1];
+        if (prev) {
+          state = { ...prev };
+          refreshCurrentView();
+        } else {
+          // Se não há anterior, vai pra home
+          state = { view: 'home', categoriaId: null, produtoId: null, tab: 'produtos' };
+          renderHome();
+        }
+      }
+    });
+
 
     function getTheme() { return localStorage.getItem('orcafacil-theme') || 'dark'; }
     function setTheme(theme) {
@@ -1374,11 +1416,16 @@
                 <div class="form-group"><label class="form-label">Nome do Produto</label><input class="form-input" id="prodNome" placeholder="Ex: LAVITAN"></div>
                 <div class="form-group"><label class="form-label">Descrição</label><input class="form-input" id="prodDesc" placeholder="Ex: Suplemento vitamínico - 60 cápsulas"></div>
                 <div class="form-group"><label class="form-label">Unidade</label>
-                  <select class="form-select" id="prodUnidade">
+                  <select class="form-select" id="prodUnidade" onchange="toggleUnidadeManual()">
                     <option value="unidade">Unidade</option><option value="caixa">Caixa</option><option value="saco">Saco</option>
                     <option value="kg">Quilograma</option><option value="litro">Litro</option><option value="metro">Metro</option>
                     <option value="pacote">Pacote</option><option value="kit">Kit</option>
+                    <option value="__outro__">✏️ Outro</option>
                   </select>
+                </div>
+                <div class="form-group" id="prodUnidadeManualGroup" style="display:none;">
+                  <label class="form-label">Digite a unidade</label>
+                  <input class="form-input" id="prodUnidadeManual" placeholder="Ex: PAR, ROLO, LATA">
                 </div>
                 <button class="btn btn-primary" onclick="salvarProduto(${categoria.id})">Adicionar Produto</button>
               </div>
@@ -1429,6 +1476,17 @@
               <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="editCatNome" value="${categoria.nome}"></div>
               <div class="form-group"><label class="form-label">Descrição</label><input class="form-input" id="editCatDesc" value="${categoria.descricao || ''}"></div>
               <button class="btn btn-primary" onclick="atualizarCategoria(${categoria.id})">Salvar Alterações</button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-overlay" id="modalEditFornecedor">
+          <div class="modal">
+            <div class="modal-header"><div class="modal-title">Editar Fornecedor</div><button class="icon-btn" onclick="closeModal('modalEditFornecedor')">${ICONS.close}</button></div>
+            <div class="modal-body">
+              <div class="form-group"><label class="form-label">Nome da Loja / Fornecedor</label><input class="form-input" id="editFornNome" placeholder="Ex: Drogaria São Paulo"></div>
+              <div class="form-group"><label class="form-label">Telefone (opcional)</label><input class="form-input" id="editFornTel" placeholder="Ex: (11) 99999-9999"></div>
+              <div class="form-group"><label class="form-label">Endereço (opcional)</label><input class="form-input" id="editFornEnd" placeholder="Ex: Rua das Flores, 123"></div>
+              <button class="btn btn-primary" onclick="atualizarFornecedor(${categoria.id})">Salvar Alterações</button>
             </div>
           </div>
         </div>`;
@@ -1551,11 +1609,28 @@
               <button class="btn btn-primary" onclick="atualizarProduto(${produto.id}, ${categoriaId})">Salvar Alterações</button>
             </div>
           </div>
+        </div>
+        <div class="modal-overlay" id="modalEditOrcamento">
+          <div class="modal">
+            <div class="modal-header"><div class="modal-title">Editar Orçamento</div><button class="icon-btn" onclick="closeModal('modalEditOrcamento')">${ICONS.close}</button></div>
+            <div class="modal-body">
+              <div class="form-group"><label class="form-label">Preço (R$)</label><input class="form-input" id="editOrcPreco" type="number" step="0.01" placeholder="0,00" inputmode="decimal"></div>
+              <div class="form-group"><label class="form-label">Quantidade</label><input class="form-input" id="editOrcQtd" type="number" value="1" min="1"></div>
+              <div class="form-group"><label class="form-label">Data do orçamento</label><input class="form-input" id="editOrcData" type="date"></div>
+              <div class="form-group"><label class="form-label">Observação (opcional)</label><input class="form-input" id="editOrcObs" placeholder="Ex: Promoção válida até..."></div>
+              <button class="btn btn-primary" onclick="atualizarOrcamento(${categoriaId}, ${produtoId})">Salvar Alterações</button>
+            </div>
+          </div>
         </div>`;
 
       document.getElementById('app').innerHTML = html;
     }
 
+    function toggleUnidadeManual() {
+      const sel = document.getElementById('prodUnidade');
+      const grp = document.getElementById('prodUnidadeManualGroup');
+      if (grp) grp.style.display = sel.value === '__outro__' ? 'block' : 'none';
+    }
     function toggleFornecedorManual() {
       const sel = document.getElementById('orcFornecedorSelect');
       const grp = document.getElementById('orcFornManualGroup');
@@ -1751,9 +1826,9 @@
 
     // ===== CRUD CATEGORIA =====
     async function salvarCategoria() {
-      const nome = document.getElementById('catNome').value.trim();
+      const nome = document.getElementById('catNome').value.trim().toUpperCase();
       const tipo = document.getElementById('catTipo').value;
-      const desc = document.getElementById('catDesc').value.trim();
+      const desc = document.getElementById('catDesc').value.trim().toUpperCase();
       if (!nome) { toast('Digite o nome da categoria', 'danger'); return; }
       await dbAdd('categorias', { nome, tipo, descricao: desc, criadoEm: Date.now() });
       closeModal('modalCategoria');
@@ -1761,8 +1836,8 @@
       navigate('home');
     }
     async function atualizarCategoria(id) {
-      const nome = document.getElementById('editCatNome').value.trim();
-      const desc = document.getElementById('editCatDesc').value.trim();
+      const nome = document.getElementById('editCatNome').value.trim().toUpperCase();
+      const desc = document.getElementById('editCatDesc').value.trim().toUpperCase();
       if (!nome) { toast('Digite o nome', 'danger'); return; }
       const cat = (await dbGetAll('categorias')).find(c => c.id === id);
       cat.nome = nome; cat.descricao = desc;
@@ -1786,17 +1861,24 @@
 
     // ===== CRUD PRODUTO =====
     async function salvarProduto(categoriaId) {
-      const nome = document.getElementById('prodNome').value.trim();
-      const desc = document.getElementById('prodDesc').value.trim();
-      const unidade = document.getElementById('prodUnidade').value;
+      const nome = document.getElementById('prodNome').value.trim().toUpperCase();
+      const desc = document.getElementById('prodDesc').value.trim().toUpperCase();
+      const sel = document.getElementById('prodUnidade');
+      let unidade = sel.value === '__outro__' ? document.getElementById('prodUnidadeManual').value.trim().toUpperCase() : sel.value.toUpperCase();
       if (!nome) { toast('Digite o nome do produto', 'danger'); return; }
+      if (!unidade) { toast('Digite a unidade', 'danger'); return; }
       await dbAdd('produtos', { categoriaId, nome, descricao: desc, unidade, criadoEm: Date.now() });
       closeModal('modalProduto'); toast('Produto adicionado!', 'success');
+      document.getElementById('prodNome').value = '';
+      document.getElementById('prodDesc').value = '';
+      document.getElementById('prodUnidade').value = 'unidade';
+      document.getElementById('prodUnidadeManual').value = '';
+      document.getElementById('prodUnidadeManualGroup').style.display = 'none';
       renderCategoria(categoriaId);
     }
     async function atualizarProduto(id, categoriaId) {
-      const nome = document.getElementById('editProdNome').value.trim();
-      const desc = document.getElementById('editProdDesc').value.trim();
+      const nome = document.getElementById('editProdNome').value.trim().toUpperCase();
+      const desc = document.getElementById('editProdDesc').value.trim().toUpperCase();
       if (!nome) { toast('Digite o nome', 'danger'); return; }
       const prod = (await dbGetAll('produtos')).find(p => p.id === id);
       prod.nome = nome; prod.descricao = desc;
@@ -1814,9 +1896,9 @@
 
     // ===== CRUD FORNECEDOR =====
     async function salvarFornecedor(categoriaId) {
-      const nome = document.getElementById('fornNome').value.trim();
+      const nome = document.getElementById('fornNome').value.trim().toUpperCase();
       const telefone = document.getElementById('fornTel').value.trim();
-      const endereco = document.getElementById('fornEnd').value.trim();
+      const endereco = document.getElementById('fornEnd').value.trim().toUpperCase();
       if (!nome) { toast('Digite o nome do fornecedor', 'danger'); return; }
       await dbAdd('fornecedores', { categoriaId, nome, telefone, endereco, criadoEm: Date.now() });
       closeModal('modalFornecedor'); toast('Fornecedor cadastrado!', 'success');
@@ -1825,18 +1907,27 @@
       document.getElementById('fornEnd').value = '';
       renderCategoria(categoriaId);
     }
+    let editingFornId = null;
     async function editarFornecedor(id, categoriaId) {
       const f = (await dbGetAll('fornecedores')).find(x => x.id === id);
-      const novoNome = prompt('Nome:', f.nome);
-      if (novoNome === null) return;
-      if (!novoNome.trim()) { toast('Nome inválido', 'danger'); return; }
-      const novoTel = prompt('Telefone:', f.telefone || '');
-      if (novoTel === null) return;
-      const novoEnd = prompt('Endereço:', f.endereco || '');
-      if (novoEnd === null) return;
-      f.nome = novoNome.trim(); f.telefone = novoTel.trim(); f.endereco = novoEnd.trim();
+      editingFornId = id;
+      document.getElementById('editFornNome').value = f.nome;
+      document.getElementById('editFornTel').value = f.telefone || '';
+      document.getElementById('editFornEnd').value = f.endereco || '';
+      openModal('modalEditFornecedor');
+    }
+    async function atualizarFornecedor(categoriaId) {
+      const nome = document.getElementById('editFornNome').value.trim().toUpperCase();
+      const telefone = document.getElementById('editFornTel').value.trim();
+      const endereco = document.getElementById('editFornEnd').value.trim().toUpperCase();
+      if (!nome) { toast('Digite o nome do fornecedor', 'danger'); return; }
+      const f = (await dbGetAll('fornecedores')).find(x => x.id === editingFornId);
+      f.nome = nome; f.telefone = telefone; f.endereco = endereco;
       await dbPut('fornecedores', f);
-      toast('Fornecedor atualizado!', 'success'); renderCategoria(categoriaId);
+      editingFornId = null;
+      closeModal('modalEditFornecedor');
+      toast('Fornecedor atualizado!', 'success');
+      renderCategoria(categoriaId);
     }
     async function excluirFornecedor(id, categoriaId) {
       if (!confirm('Excluir este fornecedor?')) return;
@@ -1847,25 +1938,40 @@
     // ===== CRUD ORÇAMENTO =====
     async function salvarOrcamento(produtoId, categoriaId) {
       const sel = document.getElementById('orcFornecedorSelect');
-      let fornecedor = sel.value === '__outro__' ? document.getElementById('orcFornecedorManual').value.trim() : sel.value;
+      let fornecedor = sel.value === '__outro__' ? document.getElementById('orcFornecedorManual').value.trim().toUpperCase() : sel.value.toUpperCase();
       const preco = parseFloat(document.getElementById('orcPreco').value.replace(',', '.'));
       const quantidade = parseInt(document.getElementById('orcQtd').value) || 1;
       const data = document.getElementById('orcData').value;
-      const observacao = document.getElementById('orcObs').value.trim();
+      const observacao = document.getElementById('orcObs').value.trim().toUpperCase();
       if (!fornecedor) { toast('Selecione ou digite o fornecedor', 'danger'); return; }
       if (isNaN(preco) || preco <= 0) { toast('Digite um preço válido', 'danger'); return; }
       await dbAdd('orcamentos', { produtoId, fornecedor, preco, quantidade, data, observacao, criadoEm: Date.now() });
       closeModal('modalOrcamento'); toast('Orçamento salvo!', 'success');
       renderProduto(categoriaId, produtoId);
     }
+    let editingOrcId = null;
     async function editarOrcamento(id, categoriaId, produtoId) {
       const o = (await dbGetAll('orcamentos')).find(x => x.id === id);
-      const novoPreco = prompt('Novo preço (R$):', o.preco);
-      if (novoPreco === null) return;
-      const preco = parseFloat(novoPreco.replace(',', '.'));
+      editingOrcId = id;
+      document.getElementById('editOrcPreco').value = o.preco;
+      document.getElementById('editOrcQtd').value = o.quantidade;
+      document.getElementById('editOrcData').value = o.data;
+      document.getElementById('editOrcObs').value = o.observacao || '';
+      openModal('modalEditOrcamento');
+    }
+    async function atualizarOrcamento(categoriaId, produtoId) {
+      const preco = parseFloat(document.getElementById('editOrcPreco').value.replace(',', '.'));
+      const quantidade = parseInt(document.getElementById('editOrcQtd').value) || 1;
+      const data = document.getElementById('editOrcData').value;
+      const observacao = document.getElementById('editOrcObs').value.trim().toUpperCase();
       if (isNaN(preco) || preco <= 0) { toast('Preço inválido', 'danger'); return; }
-      o.preco = preco; await dbPut('orcamentos', o);
-      toast('Orçamento atualizado!', 'success'); renderProduto(categoriaId, produtoId);
+      const o = (await dbGetAll('orcamentos')).find(x => x.id === editingOrcId);
+      o.preco = preco; o.quantidade = quantidade; o.data = data; o.observacao = observacao;
+      await dbPut('orcamentos', o);
+      editingOrcId = null;
+      closeModal('modalEditOrcamento');
+      toast('Orçamento atualizado!', 'success');
+      renderProduto(categoriaId, produtoId);
     }
     async function excluirOrcamento(id, categoriaId, produtoId) {
       if (!confirm('Excluir este orçamento?')) return;
@@ -1930,7 +2036,11 @@
     function switchTab(tab) { state.tab = tab; renderCategoria(state.categoriaId); }
 
     function navigate(view, categoriaId, produtoId) {
-      state = { view, categoriaId, produtoId, tab: state.tab || 'produtos' };
+      const newState = { view, categoriaId, produtoId, tab: state.tab || 'produtos' };
+      state = newState;
+      if (view !== 'home' || navHistory.length === 0) {
+        pushHistory(view, categoriaId, produtoId, state.tab);
+      }
       if (view === 'home') renderHome();
       else if (view === 'categoria') renderCategoria(categoriaId);
       else if (view === 'produto') renderProduto(categoriaId, produtoId);
