@@ -95,7 +95,7 @@
     .hero {
       background: linear-gradient(135deg, var(--primary-900) 0%, var(--primary-700) 50%, var(--primary-600) 100%);
       color: #fff;
-      padding: 16px 16px 28px;
+      padding: 16px 16px 120px;
       position: relative;
       overflow: hidden;
     }
@@ -159,9 +159,10 @@
     /* ===== SEARCH ===== */
     .search-wrap {
       padding: 0 16px;
-      margin-top: 4px;
+      margin-top: -100px;
       position: relative;
       z-index: 2;
+      margin-bottom: 12px;
     }
     .search-box {
       display: flex;
@@ -171,7 +172,7 @@
       border: 1.5px solid var(--border);
       border-radius: var(--radius-pill);
       padding: 12px 16px;
-      box-shadow: var(--shadow-sm);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
       transition: all 0.15s;
     }
     .search-box:focus-within {
@@ -215,7 +216,7 @@
     .chips-wrap {
       display: flex;
       gap: 8px;
-      padding: 14px 16px 10px;
+      padding: 8px 16px 10px;
       overflow-x: auto;
       scrollbar-width: none;
     }
@@ -246,7 +247,10 @@
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 10px;
-      padding: 0 16px 14px;
+      padding: 0 16px;
+      position: relative;
+      z-index: 2;
+      margin-bottom: 16px;
     }
     .stat-box {
       border-radius: var(--radius-md);
@@ -255,6 +259,7 @@
       border: 1.5px solid var(--border);
       background: var(--surface);
       transition: all 0.15s;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     }
     .stat-box:hover { border-color: var(--primary-400); }
     .stat-value {
@@ -920,8 +925,8 @@
     }
   
     /* Espaço após hero */
-    .hero + .search-wrap { margin-top: 8px; }
     .hero + .content { padding-top: 16px; }
+    .breadcrumb + .content { padding-top: 12px; }
     .cat-header + .breadcrumb { margin-top: 0; }
     .prod-header + .breadcrumb { margin-top: 0; }
 
@@ -1220,7 +1225,7 @@
       `;
 
       // Filter chips
-      html += `<div class="chips-wrap">`;
+      html += `<div class="chips-wrap" style="padding-top:16px;">`;
       html += `<div class="chip active" onclick="filterHome(this, null)">Todos (${categorias.length})</div>`;
       for (const cat of categorias) {
         const count = produtos.filter(p => p.categoriaId === cat.id).length;
@@ -1229,7 +1234,7 @@
       html += `</div>`;
 
       // Grid de categorias
-      html += `<div class="section-title">Categorias</div>`;
+      html += `<div class="section-title" style="padding-top:8px;">Categorias</div>`;
       if (categorias.length === 0) {
         html += `<div class="empty"><div class="empty-icon">📂</div><div class="empty-title">Nenhuma categoria</div><div class="empty-text">Adicione sua primeira categoria</div></div>`;
       } else {
@@ -1436,7 +1441,8 @@
         if (fornecedores.length === 0) {
           html += `<div class="empty"><div class="empty-icon">🏪</div><div class="empty-title">Nenhum fornecedor</div><div class="empty-text">Cadastre as lojas para facilitar seus orçamentos</div></div>`;
         } else {
-          for (const f of fornecedores) {
+          const fornsOrdenados = [...fornecedores].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+          for (const f of fornsOrdenados) {
             html += `
               <div class="forn-item">
                 <div class="forn-icon">🏪</div>
@@ -1506,8 +1512,9 @@
       const hoje = getHoje();
       const themeIcon = getTheme() === 'dark' ? ICONS.sun : ICONS.moon;
 
+      const fornsOrdenados = [...fornecedores].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
       let fornOptions = '<option value="">-- Selecione uma loja --</option>';
-      for (const f of fornecedores) fornOptions += `<option value="${f.nome}">${f.nome}</option>`;
+      for (const f of fornsOrdenados) fornOptions += `<option value="${f.nome}">${f.nome}</option>`;
       fornOptions += '<option value="__outro__">✏️ Outro (digitar manualmente)</option>';
 
       let html = `
