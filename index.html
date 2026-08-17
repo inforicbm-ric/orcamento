@@ -99,6 +99,23 @@
       position: relative;
       overflow: hidden;
     }
+    .hero-compact {
+      background: linear-gradient(135deg, var(--primary-900) 0%, var(--primary-700) 50%, var(--primary-600) 100%);
+      color: #fff;
+      padding: 16px 16px 80px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-compact::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -20%;
+      width: 300px;
+      height: 300px;
+      background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
     .hero::before {
       content: '';
       position: absolute;
@@ -929,6 +946,7 @@
     .breadcrumb + .content { padding-top: 12px; }
     .cat-header + .breadcrumb { margin-top: 0; }
     .prod-header + .breadcrumb { margin-top: 0; }
+    #searchResults { padding-top: 16px; }
 
   
     /* Maiúsculo automático */
@@ -1207,6 +1225,7 @@
           </div>
         </div>
         <div id="searchResults"></div>
+        <div id="homeContent">
 
         <div class="stats-row">
           <div class="stat-box">
@@ -1278,6 +1297,7 @@
         html += `</div>`;
       }
 
+      html += `</div>`;  <!-- fecha homeContent -->
       html += `</div>`;
       html += renderBottomNav('home');
       html += `
@@ -1319,30 +1339,66 @@
     async function doSearch() {
       const query = document.getElementById('searchInput').value.trim();
       const clearBtn = document.getElementById('searchClear');
-      clearBtn.classList.toggle('visible', query.length > 0);
+      const homeContent = document.getElementById('homeContent');
       const container = document.getElementById('searchResults');
-      if (!query) { container.innerHTML = ''; return; }
+      clearBtn.classList.toggle('visible', query.length > 0);
+      if (!query) {
+        container.innerHTML = '';
+        if (homeContent) homeContent.style.display = '';
+        return;
+      }
+      if (homeContent) homeContent.style.display = 'none';
       const produtos = await dbGetAll('produtos');
       const categorias = await dbGetAll('categorias');
       const orcamentos = await dbGetAll('orcamentos');
+
+      // Busca por nome/descrição do produto
       let results = produtos.filter(p => {
         return searchMatches(query, p.nome) || (p.descricao && searchMatches(query, p.descricao));
       });
-      if (results.length === 0) { container.innerHTML = `<div class="search-empty">Nenhum produto encontrado</div>`; return; }
-      let html = '<div class="search-results">';
+
+      // Busca por fornecedor nos orçamentos
+      const orcsMatch = orcamentos.filter(o => searchMatches(query, o.fornecedor));
+      for (const o of orcsMatch) {
+        const prod = produtos.find(p => p.id === o.produtoId);
+        if (prod && !results.some(r => r.id === prod.id)) {
+          results.push(prod);
+        }
+      }
+
+      if (results.length === 0) {
+        container.innerHTML = `<div class="search-empty" style="margin:20px 16px;padding:30px;text-align:center;color:var(--text-muted);">🔍<br><br><strong style="color:var(--text-secondary)">Nenhum produto encontrado</strong><br><span style="font-size:12px">Tente outro termo de busca</span></div>`;
+        return;
+      }
+
+      // Calcular data do último orçamento e ordenar por data decrescente
+      results = results.map(prod => {
+        const prodOrcs = orcamentos.filter(o => o.produtoId === prod.id);
+        let dataUltOrc = null;
+        let dataUltOrcRaw = 0;
+        if (prodOrcs.length > 0) {
+          const ultOrc = [...prodOrcs].sort((a, b) => new Date(b.data || b.criadoEm) - new Date(a.data || a.criadoEm))[0];
+          dataUltOrc = formatDate(ultOrc.data) || formatDate(new Date(ultOrc.criadoEm).toISOString().split('T')[0]);
+          dataUltOrcRaw = new Date(ultOrc.data || ultOrc.criadoEm).getTime();
+        }
+        return { ...prod, _prodOrcs: prodOrcs, _dataUltOrc: dataUltOrc, _dataUltOrcRaw: dataUltOrcRaw };
+      }).sort((a, b) => b._dataUltOrcRaw - a._dataUltOrcRaw);
+
+      let html = '<div style="padding:8px 16px 16px;">';
+      html += '<div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:10px;">Resultados da busca</div>';
       for (const prod of results) {
         const cat = categorias.find(c => c.id === prod.categoriaId);
-        const prodOrcs = orcamentos.filter(o => o.produtoId === prod.id);
-        const menorPreco = prodOrcs.length > 0 ? Math.min(...prodOrcs.map(o => o.preco)) : null;
+        const menorPreco = prod._prodOrcs.length > 0 ? Math.min(...prod._prodOrcs.map(o => o.preco)) : null;
+        const fornMatch = orcamentos.find(o => o.produtoId === prod.id && searchMatches(query, o.fornecedor));
         const info = cat ? (CATEGORIA_ICONS[cat.tipo] || CATEGORIA_ICONS.outros) : CATEGORIA_ICONS.outros;
         html += `
-          <div class="search-result-item" onclick="navigate('produto', ${prod.categoriaId}, ${prod.id}); clearSearch()">
-            <div class="search-result-icon" style="background:${info.bg};color:${info.color}">${info.emoji}</div>
-            <div class="search-result-info">
-              <div class="search-result-name">${prod.nome}</div>
-              <div class="search-result-meta">${cat ? cat.nome : ''}${prod.descricao ? ' · ' + prod.descricao : ''}</div>
+          <div class="search-result-item" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='var(--primary-500)'" onmouseout="this.style.borderColor='var(--border)'" onclick="navigate('produto', ${prod.categoriaId}, ${prod.id}); clearSearch()">
+            <div class="search-result-icon" style="width:40px;height:40px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;background:${info.bg};color:${info.color}">${info.emoji}</div>
+            <div class="search-result-info" style="flex:1;min-width:0;">
+              <div class="search-result-name" style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);">${prod.nome}</div>
+              <div class="search-result-meta" style="font-size:11px;color:var(--text-muted);">${cat ? cat.nome : ''}${prod.descricao ? ' · ' + prod.descricao : ''}${fornMatch ? ' · 🏪 ' + fornMatch.fornecedor : ''}${prod._dataUltOrc ? ' · 📅 ' + prod._dataUltOrc : ''}</div>
             </div>
-            ${menorPreco !== null ? `<div class="search-result-price">${formatMoney(menorPreco)}</div>` : ''}
+            ${menorPreco !== null ? `<div class="search-result-price" style="font-size:14px;font-weight:800;color:var(--primary-600);white-space:nowrap;">${formatMoney(menorPreco)}</div>` : ''}
           </div>`;
       }
       html += '</div>';
@@ -1351,7 +1407,8 @@
 
     function clearSearch() {
       const input = document.getElementById('searchInput');
-      if (input) { input.value = ''; doSearch(); }
+      if (input) { input.value = ''; }
+      doSearch();
     }
 
     // ===== RENDER CATEGORIA =====
@@ -1395,6 +1452,12 @@
           for (const prod of produtos) {
             const prodOrcs = orcamentos.filter(o => o.produtoId === prod.id);
             const menorPreco = prodOrcs.length > 0 ? Math.min(...prodOrcs.map(o => o.preco)) : null;
+            // Data do último orçamento (mais recente)
+            let dataUltOrc = '';
+            if (prodOrcs.length > 0) {
+              const ultOrc = [...prodOrcs].sort((a, b) => new Date(b.data || b.criadoEm) - new Date(a.data || a.criadoEm))[0];
+              dataUltOrc = formatDate(ultOrc.data) || formatDate(new Date(ultOrc.criadoEm).toISOString().split('T')[0]);
+            }
             html += `
               <div class="prod-card" onclick="navigate('produto', ${categoria.id}, ${prod.id})">
                 <div class="prod-card-header">
@@ -1405,7 +1468,7 @@
                   </div>
                 </div>
                 <div class="prod-card-footer">
-                  <div class="prod-card-stat"><strong>${prodOrcs.length}</strong> orçamentos</div>
+                  <div class="prod-card-stat"><strong>${prodOrcs.length}</strong> orç${prodOrcs.length === 1 ? 'amento' : 'amentos'}${dataUltOrc ? ' · último: ' + dataUltOrc : ''}</div>
                   ${menorPreco !== null ? `<span class="badge badge-success">${formatMoney(menorPreco)}</span>` : '<span class="badge badge-warning">Sem orçamento</span>'}
                 </div>
               </div>`;
@@ -1582,6 +1645,7 @@
         });
       }
 
+      html += `</div>`;  <!-- fecha homeContent -->
       html += `</div>`;
       html += renderBottomNav('home');
 
@@ -1660,7 +1724,7 @@
       const maxCount = prodData.length > 0 ? prodData[0].count : 1;
 
       let html = `
-        <div class="hero">
+        <div class="hero-compact">
           <div class="hero-top">
             <span class="hero-date">${getDataExtenso()}</span>
             <div class="hero-actions">
