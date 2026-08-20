@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#312e81" id="themeMeta">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="app-version" content="2.1.6">
+  <meta name="app-version" content="2.1.7">
 
   <style>
     :root {
@@ -513,7 +513,7 @@
         }
       }
 
-      const recentes = [...orcamentos].sort((a,b) => b.criadoEm - a.criadoEm).slice(0, 5);
+      const recentes = [...produtos].sort((a,b) => b.criadoEm - a.criadoEm).slice(0, 5);
 
       let html = `
         <div class="hero">
@@ -584,23 +584,31 @@
       }
 
       if (recentes.length > 0) {
-        html += `<div class="section-title">Orçamentos Recentes</div><div class="recent-list">`;
+        html += `<div class="section-title">📦 Últimos Produtos</div><div class="recent-list">`;
         for (let i = 0; i < recentes.length; i++) {
-          const o = recentes[i];
-          const prod = produtos.find(p => p.id === o.produtoId);
-          const cat = prod ? categorias.find(c => c.id === prod.categoriaId) : null;
-          const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
-          const rankText = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1)+'º';
-          const badgeComprado = o.comprado ? '<span style="color:var(--success);font-size:10px;font-weight:800;margin-left:6px;">✅ COMPRADO</span>' : '';
-          const badgeIndisp = o.indisponivel ? '<span style="color:var(--text-muted);font-size:10px;font-weight:800;margin-left:6px;">❌ INDISPONÍVEL</span>' : '';
+          const prod = recentes[i];
+          const cat = categorias.find(c => c.id === prod.categoriaId);
+          const prodOrcs = orcamentos.filter(o => o.produtoId === prod.id);
+          const countOrcs = prodOrcs.length;
+          const temComprado = prodOrcs.some(o => o.comprado);
+          const menorPreco = countOrcs > 0 ? Math.min(...prodOrcs.filter(o => !o.indisponivel).map(o => o.preco)) : null;
+          let statusBadge = '';
+          if (temComprado) {
+            statusBadge = '<span style="font-size:10px;font-weight:800;color:var(--success);margin-left:6px;">✅ COMPRADO</span>';
+          } else if (countOrcs > 0) {
+            statusBadge = `<span style="font-size:10px;font-weight:800;color:var(--info);margin-left:6px;">${countOrcs} ORÇ${countOrcs===1?'':'AMENTOS'}</span>`;
+          } else {
+            statusBadge = '<span style="font-size:10px;font-weight:800;color:var(--text-muted);margin-left:6px;">📋 PENDENTE</span>';
+          }
+          const info = cat ? (CATEGORIA_ICONS[cat.tipo] || CATEGORIA_ICONS.outros) : CATEGORIA_ICONS.outros;
           html += `
-            <div class="recent-item" onclick="navigate('produto', ${cat ? cat.id : 0}, ${o.produtoId})">
-              <div class="recent-rank ${rankClass}">${rankText}</div>
+            <div class="recent-item" onclick="navigate('produto', ${cat ? cat.id : 0}, ${prod.id})">
+              <div class="recent-rank" style="background:${info.bg};color:${info.color};border:none;font-size:16px;">${info.emoji}</div>
               <div class="recent-info">
-                <div class="recent-prod">${prod ? prod.nome : 'Produto'}${prod && prod.descricao ? ' — ' + prod.descricao : ''}${prod && prod.produtoPara ? ' · 👤 ' + prod.produtoPara : ''}${badgeComprado}${badgeIndisp}</div>
-                <div class="recent-loja">${o.fornecedor} · ${formatDate(o.data)}</div>
+                <div class="recent-prod">${prod.nome}${prod.produtoPara ? ' · 👤 ' + prod.produtoPara : ''}${statusBadge}</div>
+                <div class="recent-loja">${cat ? cat.nome : ''}${prod.descricao ? ' · ' + prod.descricao : ''}</div>
               </div>
-              <div class="recent-price">${formatOrcPreco(o)}</div>
+              <div class="recent-price">${menorPreco !== null ? formatMoney(menorPreco) : '—'}</div>
             </div>`;
         }
         html += `</div>`;
@@ -936,6 +944,7 @@
           <div class="cat-header-top">
             <button class="hero-btn" onclick="navigate('categoria', ${categoriaId})">${ICONS.back}</button>
             <div class="hero-actions">
+              <button class="hero-btn" onclick="compartilharOrcamentos(${produto.id}, ${categoriaId})" title="Compartilhar">📤</button>
               <button class="hero-btn" onclick="openModal('modalEditProduto')">${ICONS.edit}</button>
               <button class="hero-btn" onclick="excluirProduto(${produto.id}, ${categoriaId})">${ICONS.trash}</button>
             </div>
@@ -1486,6 +1495,71 @@
       await dbDelete('orcamentos', id);
       toast('Orçamento excluído', 'success'); renderProduto(categoriaId, produtoId);
     }
+    async function compartilharOrcamentos(produtoId, categoriaId) {
+      const produto = (await dbGetAll('produtos')).find(p => p.id === produtoId);
+      const categoria = (await dbGetAll('categorias')).find(c => c.id === categoriaId);
+      const orcamentos = await dbGetByIndex('orcamentos', 'produtoId', produtoId);
+      if (orcamentos.length === 0) { toast('Nenhum orçamento para compartilhar', 'warning'); return; }
+
+      const sorted = [...orcamentos].sort((a, b) => {
+        if (a.indisponivel && !b.indisponivel) return 1;
+        if (!a.indisponivel && b.indisponivel) return -1;
+        if (a.indisponivel && b.indisponivel) return 0;
+        return a.preco - b.preco;
+      });
+
+      let dispIdx = 0;
+      let texto = `*🛒 ORÇAMENTO - ${produto.nome.toUpperCase()}*`;
+      if (produto.descricao) texto += `\n_${produto.descricao}_`;
+      if (produto.produtoPara) texto += `\n👤 Para: ${produto.produtoPara}`;
+      if (categoria) texto += `\n📁 Categoria: ${categoria.nome}`;
+      texto += `\n\n*📊 RANKING POR PREÇO:*\n`;
+
+      sorted.forEach((o, i) => {
+        const isDisp = !o.indisponivel;
+        let rank = '';
+        if (isDisp) {
+          dispIdx++;
+          if (dispIdx === 1) rank = '🥇 ';
+          else if (dispIdx === 2) rank = '🥈 ';
+          else if (dispIdx === 3) rank = '🥉 ';
+          else rank = `${dispIdx}º `;
+        }
+        const preco = o.indisponivel ? '❌ INDISPONÍVEL' : formatMoney(o.preco);
+        const comprado = o.comprado ? ' ✅ *COMPRADO*' : '';
+        const obs = o.observacao ? ` (${o.observacao})` : '';
+        texto += `\n${rank}*${o.fornecedor}*${comprado}\n💰 ${preco}${obs}`;
+      });
+
+      const disp = sorted.filter(o => !o.indisponivel);
+      if (disp.length > 0) {
+        const menor = disp[0].preco;
+        const maior = disp[disp.length - 1].preco;
+        const economia = maior - menor;
+        texto += `\n\n💚 *Menor preço:* ${formatMoney(menor)}`;
+        texto += `\n❤️ *Maior preço:* ${formatMoney(maior)}`;
+        if (economia > 0) texto += `\n💰 *Economia:* ${formatMoney(economia)}`;
+      }
+
+      texto += `\n\n📱 Via OrçaFácil`;
+
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: `Orçamento ${produto.nome}`, text: texto });
+          toast('Compartilhado!', 'success');
+        } catch (e) {
+          // Usuário cancelou
+        }
+      } else {
+        try {
+          await navigator.clipboard.writeText(texto);
+          toast('Texto copiado! Cole no WhatsApp', 'success');
+        } catch (e) {
+          toast('Erro ao copiar texto', 'danger');
+        }
+      }
+    }
+
     async function marcarComprado(orcId, categoriaId, produtoId) {
       const orcs = await dbGetByIndex('orcamentos', 'produtoId', produtoId);
       const target = orcs.find(x => x.id === orcId);
