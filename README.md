@@ -42,7 +42,7 @@ O app já vem com dados de exemplo:
 
 ```
 orcafacil/
-├── index.html       # App completo (SPA) v2.1.4
+├── index.html       # App completo (SPA) v2.1.5
 ├── manifest.json    # Config PWA
 ├── sw.js            # Service Worker (offline)
 ├── icons/           # Ícones do app (adicione os seus)

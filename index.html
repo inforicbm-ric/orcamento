@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#312e81" id="themeMeta">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="app-version" content="2.1.7">
+  <meta name="app-version" content="2.1.8">
 
   <style>
     :root {
@@ -547,8 +547,8 @@
             <div class="stat-label">📉 Economia</div>
           </div>
           <div class="stat-box">
-            <div class="stat-value">${produtos.length}</div>
-            <div class="stat-label">📦 Produtos</div>
+            <div class="stat-value">${produtos.filter(p => orcamentos.filter(o => o.produtoId === p.id).some(o => o.comprado)).length}</div>
+            <div class="stat-label">📦 Comprados</div>
           </div>
         </div>
       `;
@@ -669,7 +669,7 @@
       const orcamentos = await dbGetAll('orcamentos');
 
       let results = produtos.filter(p => {
-        return searchMatches(query, p.nome) || (p.descricao && searchMatches(query, p.descricao));
+        return searchMatches(query, p.nome) || (p.descricao && searchMatches(query, p.descricao)) || (p.produtoPara && searchMatches(query, p.produtoPara));
       });
 
       const orcsMatch = orcamentos.filter(o => searchMatches(query, o.fornecedor));
@@ -694,24 +694,37 @@
           dataUltOrc = formatDate(ultOrc.data) || formatDate(new Date(ultOrc.criadoEm).toISOString().split('T')[0]);
           dataUltOrcRaw = new Date(ultOrc.data || ultOrc.criadoEm).getTime();
         }
-        return { ...prod, _prodOrcs: prodOrcs, _dataUltOrc: dataUltOrc, _dataUltOrcRaw: dataUltOrcRaw };
+        const compradoOrc = prodOrcs.find(o => o.comprado && !o.indisponivel);
+        const temComprado = !!compradoOrc;
+        const countOrcs = prodOrcs.length;
+        let precoDisplay = null;
+        let badgeDisplay = '';
+        if (temComprado) {
+          precoDisplay = compradoOrc.preco;
+          badgeDisplay = '<span style="font-size:9px;font-weight:800;color:var(--success);background:var(--success-soft);padding:2px 6px;border-radius:var(--radius-pill);margin-left:4px;">✅ COMPRADO</span>';
+        } else if (countOrcs > 0) {
+          precoDisplay = Math.min(...prodOrcs.filter(o => !o.indisponivel).map(o => o.preco));
+          badgeDisplay = `<span style="font-size:9px;font-weight:800;color:var(--info);background:var(--info-soft);padding:2px 6px;border-radius:var(--radius-pill);margin-left:4px;">${countOrcs} ORÇ</span>`;
+        } else {
+          badgeDisplay = '<span style="font-size:9px;font-weight:800;color:var(--text-muted);background:var(--surface-raised);padding:2px 6px;border-radius:var(--radius-pill);border:1px solid var(--border);margin-left:4px;">📋 PENDENTE</span>';
+        }
+        return { ...prod, _prodOrcs: prodOrcs, _dataUltOrc: dataUltOrc, _dataUltOrcRaw: dataUltOrcRaw, _precoDisplay: precoDisplay, _badgeDisplay: badgeDisplay };
       }).sort((a, b) => b._dataUltOrcRaw - a._dataUltOrcRaw);
 
       let html = '<div style="padding:8px 16px 16px;">';
       html += '<div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:10px;">Resultados da busca</div>';
       for (const prod of results) {
         const cat = categorias.find(c => c.id === prod.categoriaId);
-        const menorPreco = prod._prodOrcs.length > 0 ? Math.min(...prod._prodOrcs.filter(o => !o.indisponivel).map(o => o.preco)) : null;
         const fornMatch = orcamentos.find(o => o.produtoId === prod.id && searchMatches(query, o.fornecedor));
         const info = cat ? (CATEGORIA_ICONS[cat.tipo] || CATEGORIA_ICONS.outros) : CATEGORIA_ICONS.outros;
         html += `
           <div class="search-result-item" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='var(--primary-500)'" onmouseout="this.style.borderColor='var(--border)'" onclick="navigate('produto', ${prod.categoriaId}, ${prod.id}); clearSearch()">
             <div class="search-result-icon" style="width:40px;height:40px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;background:${info.bg};color:${info.color}">${info.emoji}</div>
             <div class="search-result-info" style="flex:1;min-width:0;">
-              <div class="search-result-name" style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);">${prod.nome}</div>
+              <div class="search-result-name" style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);">${prod.nome}${prod._badgeDisplay}</div>
               <div class="search-result-meta" style="font-size:11px;color:var(--text-muted);">${cat ? cat.nome : ''}${prod.descricao ? ' · ' + prod.descricao : ''}${prod.produtoPara ? ' · 👤 ' + prod.produtoPara : ''}${fornMatch ? ' · 🏪 ' + fornMatch.fornecedor : ''}${prod._dataUltOrc ? ' · 📅 ' + prod._dataUltOrc : ''}</div>
             </div>
-            ${menorPreco !== null ? `<div class="search-result-price" style="font-size:14px;font-weight:800;color:var(--primary-600);white-space:nowrap;">${formatMoney(menorPreco)}</div>` : ''}
+            ${prod._precoDisplay !== null ? `<div class="search-result-price" style="font-size:14px;font-weight:800;color:var(--primary-600);white-space:nowrap;">${formatMoney(prod._precoDisplay)}</div>` : ''}
           </div>`;
       }
       html += '</div>';
