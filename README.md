@@ -45,7 +45,7 @@ orcafacil/
 ├── index.html       # App completo (SPA) v2.1.5
 ├── manifest.json    # Config PWA
 ├── sw.js            # Service Worker (offline)
-├── icons/           # Ícones do app (adicione os seus)
+├── icons/           # Ícones do app
 └── README.md        # Este arquivo
 ```
 
