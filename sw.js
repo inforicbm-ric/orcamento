@@ -1,4 +1,5 @@
-const CACHE_NAME = 'orcafacil-v7';
+const FALLBACK_VERSION = '2.0.0';
+
 const urlsToCache = [
   './',
   './index.html',
@@ -13,26 +14,71 @@ const urlsToCache = [
   './icons/icon-512.png'
 ];
 
+// Extrai versão do index.html buscando do servidor
+async function getVersionFromIndex() {
+  try {
+    const res = await fetch('./index.html', { cache: 'no-store' });
+    const text = await res.text();
+    const match = text.match(/<meta\s+name=["']app-version["']\s+content=["']([^"']+)["']/i);
+    return match ? match[1] : FALLBACK_VERSION;
+  } catch (e) {
+    return FALLBACK_VERSION;
+  }
+}
+
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(urlsToCache)));
+  e.waitUntil(
+    getVersionFromIndex().then(version => {
+      const cacheName = 'orcafacil-v' + version;
+      return caches.open(cacheName).then(cache => cache.addAll(urlsToCache));
+    })
+  );
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then(names => Promise.all(
-    names.filter(n => n !== CACHE_NAME).map(n => caches.delete(n))
-  )));
-  self.clients.claim();
+  e.waitUntil(
+    getVersionFromIndex().then(version => {
+      const currentCache = 'orcafacil-v' + version;
+      return caches.keys().then(names =>
+        Promise.all(names.map(name =>
+          name.startsWith('orcafacil-v') && name !== currentCache ? caches.delete(name) : null
+        ))
+      );
+    }).then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener('fetch', (e) => {
+  // index.html sempre do servidor para detectar atualizações
+  if (e.request.mode === 'navigate' || e.request.url.endsWith('index.html')) {
+    e.respondWith(
+      fetch(e.request)
+        .then(response => {
+          const clone = response.clone();
+          caches.open('orcafacil-runtime').then(cache => cache.put(e.request, clone));
+          return response;
+        })
+        .catch(() => caches.match(e.request))
+    );
+    return;
+  }
+
+  // Outros arquivos: cache-first
   e.respondWith(
-    caches.match(e.request).then(r => {
-      if (r) return r;
-      return fetch(e.request).catch(() => {
-        if (e.request.mode === 'navigate') return caches.match('./index.html');
-        return undefined;
+    caches.match(e.request).then(response => {
+      if (response) return response;
+      return fetch(e.request).then(r => {
+        const clone = r.clone();
+        caches.open('orcafacil-runtime').then(cache => cache.put(e.request, clone));
+        return r;
       });
-    })
+    }).catch(() => {})
   );
+});
+
+self.addEventListener('message', (e) => {
+  if (e.data === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
