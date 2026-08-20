@@ -43,9 +43,9 @@ O app já vem com dados de exemplo:
 ```
 orcafacil/
 ├── index.html          # App completo (SPA) v2.1.7
-├── app.webmanifest     # Config PWA (novo nome!)
+├── app.webmanifest     # Config PWA
 ├── sw.js               # Service Worker (offline)
-├── icons/              # Ícones transparentes
+├── icons/              # Ícones do app
 └── README.md           # Este arquivo
 ```
 
