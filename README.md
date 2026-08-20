@@ -10,6 +10,7 @@ App PWA profissional para controle e comparação de orçamentos. **100% offline
 - **Indisponível**: Marque quando a loja não tem o produto
 - **Comprado**: Marque qual orçamento você comprou e veja o total real gasto
 - **Faltam orçar**: Veja quais lojas da categoria ainda não cotaram o produto — clique para orçar direto!
+- **Filtros de Produto**: Organize por Todos / Para Orçar / Orçados / Comprados
 - **Comparação**: Ranking automático por preço (ouro/prata/bronze)
 - **Economia**: Veja quanto você economiza escolhendo o melhor preço
 - **Exportar/Importar**: Backup em JSON dos seus dados
@@ -40,7 +41,7 @@ O app já vem com dados de exemplo:
 
 ```
 orcafacil/
-├── index.html       # App completo (SPA) v2.1.1
+├── index.html       # App completo (SPA) v2.1.2
 ├── manifest.json    # Config PWA
 ├── sw.js            # Service Worker (offline)
 ├── icons/           # Ícones do app (adicione os seus)

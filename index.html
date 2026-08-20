@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#312e81" id="themeMeta">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="app-version" content="2.1.4">
+  <meta name="app-version" content="2.1.5">
 
   <style>
     :root {
@@ -750,10 +750,35 @@
       `;
 
       if (tab === 'produtos') {
+        // Calcular contadores para os chips
+        const countPendente = produtos.filter(p => orcamentos.filter(o => o.produtoId === p.id).length === 0).length;
+        const countOrcado = produtos.filter(p => {
+          const pos = orcamentos.filter(o => o.produtoId === p.id);
+          return pos.length > 0 && !pos.some(o => o.comprado);
+        }).length;
+        const countComprado = produtos.filter(p => orcamentos.filter(o => o.produtoId === p.id).some(o => o.comprado)).length;
+        const filtroAtivo = state.produtoFiltro || 'todos';
+
+        html += `<div class="chips-wrap" style="padding:12px 16px 4px;">`;
+        html += `<div class="chip ${filtroAtivo==='todos'?'active':''}" onclick="filtrarProdutos('todos')">Todos (${produtos.length})</div>`;
+        html += `<div class="chip ${filtroAtivo==='pendente'?'active':''}" onclick="filtrarProdutos('pendente')">📋 Para Orçar (${countPendente})</div>`;
+        html += `<div class="chip ${filtroAtivo==='orcado'?'active':''}" onclick="filtrarProdutos('orcado')">🏷️ Orçados (${countOrcado})</div>`;
+        html += `<div class="chip ${filtroAtivo==='comprado'?'active':''}" onclick="filtrarProdutos('comprado')">✅ Comprados (${countComprado})</div>`;
+        html += `</div>`;
+
         if (produtos.length === 0) {
           html += `<div class="empty"><div class="empty-icon">📦</div><div class="empty-title">Nenhum produto</div><div class="empty-text">Adicione o primeiro produto para começar</div></div>`;
         } else {
-          for (const prod of produtos) {
+          // Ordenar: Pendente → Orçado → Comprado
+          const produtosOrdenados = [...produtos].sort((a, b) => {
+            const oa = orcamentos.filter(o => o.produtoId === a.id);
+            const ob = orcamentos.filter(o => o.produtoId === b.id);
+            const sa = oa.some(o => o.comprado) ? 2 : (oa.length > 0 ? 1 : 0);
+            const sb = ob.some(o => o.comprado) ? 2 : (ob.length > 0 ? 1 : 0);
+            return sa - sb;
+          });
+
+          for (const prod of produtosOrdenados) {
             const prodOrcs = orcamentos.filter(o => o.produtoId === prod.id);
             const menorPreco = prodOrcs.length > 0 ? Math.min(...prodOrcs.filter(o => !o.indisponivel).map(o => o.preco)) : null;
             let dataUltOrc = '';
@@ -762,17 +787,33 @@
               dataUltOrc = formatDate(ultOrc.data) || formatDate(new Date(ultOrc.criadoEm).toISOString().split('T')[0]);
             }
             const temComprado = prodOrcs.some(o => o.comprado);
+            const countOrcs = prodOrcs.length;
+            let statusProd = 'pendente';
+            let badgeStatus = '';
+            let statusText = '';
+            if (temComprado) {
+              statusProd = 'comprado';
+              badgeStatus = '<span class="selo-comprado">✅ Comprado</span>';
+              statusText = '<strong style="color:var(--success)">✅ Comprado</strong>';
+            } else if (countOrcs > 0) {
+              statusProd = 'orcado';
+              badgeStatus = `<span style="font-size:10px;font-weight:800;color:var(--info);background:var(--info-soft);padding:2px 8px;border-radius:var(--radius-pill);margin-left:6px;vertical-align:middle;">${countOrcs} orç${countOrcs===1?'amento':'amentos'}</span>`;
+              statusText = `<strong>${countOrcs}</strong> orç${countOrcs === 1 ? 'amento' : 'amentos'}`;
+            } else {
+              statusProd = 'pendente';
+              badgeStatus = '<span style="font-size:10px;font-weight:800;color:var(--text-muted);background:var(--surface-raised);padding:2px 8px;border-radius:var(--radius-pill);margin-left:6px;vertical-align:middle;border:1px solid var(--border);">📋 Pendente</span>';
+              statusText = '<span style="color:var(--text-muted)">📋 Sem orçamento</span>';
+            }
             html += `
-              <div class="prod-card" onclick="navigate('produto', ${categoria.id}, ${prod.id})">
-                <div class="prod-card-header">
-                  <div class="prod-card-icon" style="background:${info.bg};color:${info.color}">${ICONS[info.icon]}</div>
+              <div class="prod-card" data-status="${statusProd}" onclick="navigate('produto', ${categoria.id}, ${prod.id})">
+                <div class="prod-card-header" style="gap:0;">
                   <div style="flex:1;min-width:0">
-                    <div class="prod-card-title">${prod.nome}${temComprado ? '<span class="selo-comprado">✅ Comprado</span>' : ''}</div>
+                    <div class="prod-card-title">${prod.nome}${badgeStatus}</div>
                     <div class="prod-card-meta">${prod.descricao || ''}</div>
                   </div>
                 </div>
                 <div class="prod-card-footer">
-                  <div class="prod-card-stat"><strong>${prodOrcs.length}</strong> orç${prodOrcs.length === 1 ? 'amento' : 'amentos'}${dataUltOrc ? ' · último: ' + dataUltOrc : ''}</div>
+                  <div class="prod-card-stat">${statusText}${dataUltOrc ? ' · último: ' + dataUltOrc : ''}</div>
                   ${menorPreco !== null ? `<span class="badge badge-success">${formatMoney(menorPreco)}</span>` : '<span class="badge badge-warning">Sem orçamento</span>'}
                 </div>
               </div>`;
@@ -1484,6 +1525,25 @@
     }
 
     function switchTab(tab) { state.tab = tab; renderCategoria(state.categoriaId); }
+
+    function filtrarProdutos(filtro) {
+      state.produtoFiltro = filtro;
+      const cards = document.querySelectorAll('.prod-card');
+      const chips = document.querySelectorAll('.chips-wrap .chip');
+      chips.forEach((c, i) => {
+        const filtros = ['todos', 'pendente', 'orcado', 'comprado'];
+        if (filtros[i] === filtro) c.classList.add('active');
+        else c.classList.remove('active');
+      });
+      cards.forEach(card => {
+        const st = card.dataset.status;
+        if (filtro === 'todos' || st === filtro) {
+          card.style.display = '';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    }
 
     function navigate(view, categoriaId, produtoId) {
       const newState = { view, categoriaId, produtoId, tab: state.tab || 'produtos' };
