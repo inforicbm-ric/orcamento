@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#312e81" id="themeMeta">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="app-version" content="2.0.1">
+  <meta name="app-version" content="2.0.2">
 
   <style>
     :root {
@@ -1871,6 +1871,10 @@
       document.getElementById('app').innerHTML = html;
     }
 
+    function getAppVersion() {
+      return document.querySelector('meta[name="app-version"]')?.content || '2.0.0';
+    }
+
     // ===== RENDER CONFIGURAÇÕES =====
     async function renderConfiguracoes() {
       const themeIcon = getTheme() === 'dark' ? ICONS.sun : ICONS.moon;
@@ -1930,7 +1934,7 @@
           </div>
 
           <div style="text-align:center;padding:30px 16px;color:var(--text-muted);font-size:12px;">
-            <div style="margin-bottom:6px;">OrçaFácil v2.0</div>
+            <div style="margin-bottom:6px;">OrçaFácil v${getAppVersion()}</div>
             <div>100% offline · PWA</div>
           </div>
         </div>
