@@ -3,7 +3,7 @@ const FALLBACK_VERSION = '2.0.0';
 const urlsToCache = [
   './',
   './index.html',
-  './manifest.json',
+  './app.webmanifest',
   './icons/icon-72.png',
   './icons/icon-96.png',
   './icons/icon-128.png',
