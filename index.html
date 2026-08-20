@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#312e81" id="themeMeta">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="app-version" content="2.1.5">
+  <meta name="app-version" content="2.1.6">
 
   <style>
     :root {
@@ -597,7 +597,7 @@
             <div class="recent-item" onclick="navigate('produto', ${cat ? cat.id : 0}, ${o.produtoId})">
               <div class="recent-rank ${rankClass}">${rankText}</div>
               <div class="recent-info">
-                <div class="recent-prod">${prod ? prod.nome : 'Produto'}${prod && prod.descricao ? ' — ' + prod.descricao : ''}${badgeComprado}${badgeIndisp}</div>
+                <div class="recent-prod">${prod ? prod.nome : 'Produto'}${prod && prod.descricao ? ' — ' + prod.descricao : ''}${prod && prod.produtoPara ? ' · 👤 ' + prod.produtoPara : ''}${badgeComprado}${badgeIndisp}</div>
                 <div class="recent-loja">${o.fornecedor} · ${formatDate(o.data)}</div>
               </div>
               <div class="recent-price">${formatOrcPreco(o)}</div>
@@ -701,7 +701,7 @@
             <div class="search-result-icon" style="width:40px;height:40px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;background:${info.bg};color:${info.color}">${info.emoji}</div>
             <div class="search-result-info" style="flex:1;min-width:0;">
               <div class="search-result-name" style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);">${prod.nome}</div>
-              <div class="search-result-meta" style="font-size:11px;color:var(--text-muted);">${cat ? cat.nome : ''}${prod.descricao ? ' · ' + prod.descricao : ''}${fornMatch ? ' · 🏪 ' + fornMatch.fornecedor : ''}${prod._dataUltOrc ? ' · 📅 ' + prod._dataUltOrc : ''}</div>
+              <div class="search-result-meta" style="font-size:11px;color:var(--text-muted);">${cat ? cat.nome : ''}${prod.descricao ? ' · ' + prod.descricao : ''}${prod.produtoPara ? ' · 👤 ' + prod.produtoPara : ''}${fornMatch ? ' · 🏪 ' + fornMatch.fornecedor : ''}${prod._dataUltOrc ? ' · 📅 ' + prod._dataUltOrc : ''}</div>
             </div>
             ${menorPreco !== null ? `<div class="search-result-price" style="font-size:14px;font-weight:800;color:var(--primary-600);white-space:nowrap;">${formatMoney(menorPreco)}</div>` : ''}
           </div>`;
@@ -724,14 +724,12 @@
       const orcamentos = await dbGetAll('orcamentos');
       const info = CATEGORIA_ICONS[categoria.tipo] || CATEGORIA_ICONS.outros;
       const tab = state.tab || 'produtos';
-      const themeIcon = getTheme() === 'dark' ? ICONS.sun : ICONS.moon;
 
       let html = `
         <div class="cat-header">
           <div class="cat-header-top">
             <button class="hero-btn" onclick="navigate('home')">${ICONS.back}</button>
             <div class="hero-actions">
-              <button class="hero-btn" onclick="toggleTheme()">${themeIcon}</button>
               <button class="hero-btn" onclick="openModal('modalEditCategoria')">${ICONS.edit}</button>
               <button class="hero-btn" onclick="excluirCategoria(${categoria.id})">${ICONS.trash}</button>
             </div>
@@ -786,19 +784,23 @@
               const ultOrc = [...prodOrcs].sort((a, b) => new Date(b.data || b.criadoEm) - new Date(a.data || a.criadoEm))[0];
               dataUltOrc = formatDate(ultOrc.data) || formatDate(new Date(ultOrc.criadoEm).toISOString().split('T')[0]);
             }
-            const temComprado = prodOrcs.some(o => o.comprado);
+            const compradoOrc = prodOrcs.find(o => o.comprado && !o.indisponivel);
+            const temComprado = !!compradoOrc;
             const countOrcs = prodOrcs.length;
             let statusProd = 'pendente';
             let badgeStatus = '';
             let statusText = '';
+            let precoCard = null;
             if (temComprado) {
               statusProd = 'comprado';
               badgeStatus = '<span class="selo-comprado">✅ Comprado</span>';
               statusText = '<strong style="color:var(--success)">✅ Comprado</strong>';
+              precoCard = compradoOrc.preco;
             } else if (countOrcs > 0) {
               statusProd = 'orcado';
               badgeStatus = `<span style="font-size:10px;font-weight:800;color:var(--info);background:var(--info-soft);padding:2px 8px;border-radius:var(--radius-pill);margin-left:6px;vertical-align:middle;">${countOrcs} orç${countOrcs===1?'amento':'amentos'}</span>`;
               statusText = `<strong>${countOrcs}</strong> orç${countOrcs === 1 ? 'amento' : 'amentos'}`;
+              precoCard = Math.min(...prodOrcs.filter(o => !o.indisponivel).map(o => o.preco));
             } else {
               statusProd = 'pendente';
               badgeStatus = '<span style="font-size:10px;font-weight:800;color:var(--text-muted);background:var(--surface-raised);padding:2px 8px;border-radius:var(--radius-pill);margin-left:6px;vertical-align:middle;border:1px solid var(--border);">📋 Pendente</span>';
@@ -809,12 +811,12 @@
                 <div class="prod-card-header" style="gap:0;">
                   <div style="flex:1;min-width:0">
                     <div class="prod-card-title">${prod.nome}${badgeStatus}</div>
-                    <div class="prod-card-meta">${prod.descricao || ''}</div>
+                    <div class="prod-card-meta">${prod.descricao || ''}${prod.produtoPara ? ' · 👤 ' + prod.produtoPara : ''}</div>
                   </div>
                 </div>
                 <div class="prod-card-footer">
                   <div class="prod-card-stat">${statusText}${dataUltOrc ? ' · último: ' + dataUltOrc : ''}</div>
-                  ${menorPreco !== null ? `<span class="badge badge-success">${formatMoney(menorPreco)}</span>` : '<span class="badge badge-warning">Sem orçamento</span>'}
+                  ${precoCard !== null ? `<span class="badge badge-success">${formatMoney(precoCard)}</span>` : '<span class="badge badge-warning">Sem orçamento</span>'}
                 </div>
               </div>`;
           }
@@ -828,6 +830,7 @@
               <div class="modal-body">
                 <div class="form-group"><label class="form-label">Nome do Produto</label><input class="form-input" id="prodNome" placeholder="Ex: LAVITAN"></div>
                 <div class="form-group"><label class="form-label">Descrição</label><input class="form-input" id="prodDesc" placeholder="Ex: Suplemento vitamínico - 60 cápsulas"></div>
+                <div class="form-group"><label class="form-label">Produto Para (opcional)</label><input class="form-input" id="prodPara" placeholder="Ex: MARIA, JOÃO, CASA"></div>
                 <div class="form-group"><label class="form-label">Unidade</label>
                   <select class="form-select" id="prodUnidade" onchange="toggleUnidadeManual()">
                     <option value="unidade">Unidade</option><option value="caixa">Caixa</option><option value="saco">Saco</option>
@@ -922,7 +925,6 @@
       });
       const info = CATEGORIA_ICONS[categoria.tipo] || CATEGORIA_ICONS.outros;
       const hoje = getHoje();
-      const themeIcon = getTheme() === 'dark' ? ICONS.sun : ICONS.moon;
 
       const fornsOrdenados = [...fornecedores].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
       let fornOptions = '<option value="">-- Selecione uma loja --</option>';
@@ -934,13 +936,12 @@
           <div class="cat-header-top">
             <button class="hero-btn" onclick="navigate('categoria', ${categoriaId})">${ICONS.back}</button>
             <div class="hero-actions">
-              <button class="hero-btn" onclick="toggleTheme()">${themeIcon}</button>
               <button class="hero-btn" onclick="openModal('modalEditProduto')">${ICONS.edit}</button>
               <button class="hero-btn" onclick="excluirProduto(${produto.id}, ${categoriaId})">${ICONS.trash}</button>
             </div>
           </div>
           <div class="cat-header-title" style="font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px">${produto.nome}</div>
-          <div class="cat-header-sub">${produto.descricao || ''}</div>
+          <div class="cat-header-sub">${produto.descricao || ''}${produto.produtoPara ? ' · 👤 ' + produto.produtoPara : ''}</div>
         </div>
         <div class="breadcrumb">
           <a onclick="navigate('home')">Início</a><span class="breadcrumb-sep">›</span>
@@ -1055,6 +1056,24 @@
             <div class="modal-body">
               <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="editProdNome" value="${produto.nome}"></div>
               <div class="form-group"><label class="form-label">Descrição</label><input class="form-input" id="editProdDesc" value="${produto.descricao || ''}"></div>
+              <div class="form-group"><label class="form-label">Produto Para</label><input class="form-input" id="editProdPara" value="${produto.produtoPara || ''}"></div>
+              <div class="form-group"><label class="form-label">Unidade</label>
+                <select class="form-select" id="editProdUnidade" onchange="toggleEditUnidadeManual()">
+                  <option value="unidade" ${produto.unidade==='UNIDADE'?'selected':''}>Unidade</option>
+                  <option value="caixa" ${produto.unidade==='CAIXA'?'selected':''}>Caixa</option>
+                  <option value="saco" ${produto.unidade==='SACO'?'selected':''}>Saco</option>
+                  <option value="kg" ${produto.unidade==='KG'?'selected':''}>Quilograma</option>
+                  <option value="litro" ${produto.unidade==='LITRO'?'selected':''}>Litro</option>
+                  <option value="metro" ${produto.unidade==='METRO'?'selected':''}>Metro</option>
+                  <option value="pacote" ${produto.unidade==='PACOTE'?'selected':''}>Pacote</option>
+                  <option value="kit" ${produto.unidade==='KIT'?'selected':''}>Kit</option>
+                  <option value="__outro__">✏️ Outro</option>
+                </select>
+              </div>
+              <div class="form-group" id="editProdUnidadeManualGroup" style="display:none;">
+                <label class="form-label">Digite a unidade</label>
+                <input class="form-input" id="editProdUnidadeManual" placeholder="Ex: PAR, ROLO, LATA">
+              </div>
               <button class="btn btn-primary" onclick="atualizarProduto(${produto.id}, ${categoriaId})">Salvar Alterações</button>
             </div>
           </div>
@@ -1340,21 +1359,33 @@
       let unidade = sel.value === '__outro__' ? document.getElementById('prodUnidadeManual').value.trim().toUpperCase() : sel.value.toUpperCase();
       if (!nome) { toast('Digite o nome do produto', 'danger'); return; }
       if (!unidade) { toast('Digite a unidade', 'danger'); return; }
-      await dbAdd('produtos', { categoriaId, nome, descricao: desc, unidade, criadoEm: Date.now() });
+      const produtoPara = document.getElementById('prodPara').value.trim().toUpperCase();
+      await dbAdd('produtos', { categoriaId, nome, descricao: desc, unidade, produtoPara, criadoEm: Date.now() });
       closeModal('modalProduto'); toast('Produto adicionado!', 'success');
       document.getElementById('prodNome').value = '';
       document.getElementById('prodDesc').value = '';
+      document.getElementById('prodPara').value = '';
       document.getElementById('prodUnidade').value = 'unidade';
       document.getElementById('prodUnidadeManual').value = '';
       document.getElementById('prodUnidadeManualGroup').style.display = 'none';
       renderCategoria(categoriaId);
     }
+    function toggleEditUnidadeManual() {
+      const sel = document.getElementById('editProdUnidade');
+      const grp = document.getElementById('editProdUnidadeManualGroup');
+      if (grp) grp.style.display = sel.value === '__outro__' ? 'block' : 'none';
+    }
+
     async function atualizarProduto(id, categoriaId) {
       const nome = document.getElementById('editProdNome').value.trim().toUpperCase();
       const desc = document.getElementById('editProdDesc').value.trim().toUpperCase();
+      const produtoPara = document.getElementById('editProdPara').value.trim().toUpperCase();
+      const sel = document.getElementById('editProdUnidade');
+      let unidade = sel.value === '__outro__' ? document.getElementById('editProdUnidadeManual').value.trim().toUpperCase() : sel.value.toUpperCase();
       if (!nome) { toast('Digite o nome', 'danger'); return; }
+      if (!unidade) { toast('Digite a unidade', 'danger'); return; }
       const prod = (await dbGetAll('produtos')).find(p => p.id === id);
-      prod.nome = nome; prod.descricao = desc;
+      prod.nome = nome; prod.descricao = desc; prod.produtoPara = produtoPara; prod.unidade = unidade;
       await dbPut('produtos', prod);
       closeModal('modalEditProduto'); toast('Produto atualizado!', 'success');
       renderProduto(categoriaId, id);
@@ -1457,18 +1488,23 @@
     }
     async function marcarComprado(orcId, categoriaId, produtoId) {
       const orcs = await dbGetByIndex('orcamentos', 'produtoId', produtoId);
+      const target = orcs.find(x => x.id === orcId);
+      const jaComprado = target && target.comprado;
+      // Desmarca todos do produto
       for (const o of orcs) {
         if (o.comprado) {
           o.comprado = false;
           await dbPut('orcamentos', o);
         }
       }
-      const o = orcs.find(x => x.id === orcId);
-      if (o) {
-        o.comprado = true;
-        await dbPut('orcamentos', o);
+      // Se não estava comprado, marca. Se já estava, deixa desmarcado (toggle)
+      if (target && !jaComprado) {
+        target.comprado = true;
+        await dbPut('orcamentos', target);
+        toast('Marcado como comprado!', 'success');
+      } else {
+        toast('Desmarcado como comprado', 'info');
       }
-      toast('Marcado como comprado!', 'success');
       renderProduto(categoriaId, produtoId);
     }
 
