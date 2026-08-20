@@ -14,7 +14,6 @@ const urlsToCache = [
   './icons/icon-512.png'
 ];
 
-// Extrai versão do index.html buscando do servidor
 async function getVersionFromIndex() {
   try {
     const res = await fetch('./index.html', { cache: 'no-store' });
@@ -50,7 +49,6 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  // index.html sempre do servidor para detectar atualizações
   if (e.request.mode === 'navigate' || e.request.url.endsWith('index.html')) {
     e.respondWith(
       fetch(e.request)
@@ -63,8 +61,6 @@ self.addEventListener('fetch', (e) => {
     );
     return;
   }
-
-  // Outros arquivos: cache-first
   e.respondWith(
     caches.match(e.request).then(response => {
       if (response) return response;
