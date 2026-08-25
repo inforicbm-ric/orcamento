@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#0c0c14" id="themeMeta">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="app-version" content="2.2.2">
+  <meta name="app-version" content="2.2.3">
 
   <style>
     :root {
@@ -33,8 +33,8 @@
       --shadow: 0 4px 24px rgba(99,102,241,0.08); --shadow-sm: 0 2px 8px rgba(99,102,241,0.06); --shadow-fab: 0 6px 20px rgba(79,70,229,0.25);
     }
     * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
-    html, body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased; overscroll-behavior-y: none; }
-    .app { max-width: 480px; margin: 0 auto; min-height: 100vh; position: relative; padding-bottom: 80px; }
+    html, body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .app { max-width: 480px; margin: 0 auto; min-height: 100vh; position: relative; padding-bottom: 80px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
     .hero { background: linear-gradient(135deg, var(--primary-900) 0%, var(--primary-700) 50%, var(--primary-600) 100%); color: #fff; padding: 16px 16px 120px; position: relative; overflow: hidden; }
     .hero-compact { background: linear-gradient(135deg, var(--primary-900) 0%, var(--primary-700) 50%, var(--primary-600) 100%); color: #fff; padding: 16px 16px 80px; position: relative; overflow: hidden; }
@@ -104,7 +104,7 @@
     .empty-title { font-size: 14px; font-weight: 700; color: var(--text-secondary); margin-bottom: 3px; }
     .empty-text { font-size: 12px; }
 
-    .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; display: flex; justify-content: space-around; align-items: flex-end; padding: 8px 0 16px; background: var(--surface); border-top: 1px solid var(--border); z-index: 100; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+    .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; display: flex; justify-content: space-around; align-items: flex-end; padding: 8px 0 16px; background: var(--surface); border-top: 1px solid var(--border); z-index: 100; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); touch-action: manipulation; }
     .nav-item { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10px; font-weight: 600; color: var(--text-muted); cursor: pointer; padding: 4px 12px; border-radius: var(--radius-sm); transition: all 0.15s; border: none; background: transparent; font-family: inherit; }
     .nav-item:hover { color: var(--text-secondary); }
     .nav-item.active { color: var(--primary-600); }
@@ -115,8 +115,9 @@
     .nav-fab:active { transform: scale(0.95); }
     .nav-fab svg { width: 22px; height: 22px; }
 
-    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: flex-end; justify-content: center; z-index: 300; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
-    .modal-overlay.active { display: flex; }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: flex-end; justify-content: center; z-index: 300; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); pointer-events: none; }
+    .modal-overlay.active { display: flex; pointer-events: auto; }
+    
     .modal { background: var(--surface); width: 100%; max-width: 480px; border-radius: var(--radius-lg) var(--radius-lg) 0 0; border: 1.5px solid var(--border); border-bottom: none; max-height: 85vh; overflow-y: auto; animation: slideUp 0.3s cubic-bezier(0.16,1,0.3,1); }
     @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     .modal-header { padding: 18px 18px 0; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--surface); z-index: 2; }
