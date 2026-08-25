@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#0c0c14" id="themeMeta">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="app-version" content="2.2.1">
+  <meta name="app-version" content="2.1.7">
 
   <style>
     :root {
@@ -574,11 +574,11 @@
           const info = CATEGORIA_ICONS[cat.tipo] || CATEGORIA_ICONS.outros;
           const menorPreco = catOrcamentos.length > 0 ? Math.min(...catOrcamentos.filter(o => !o.indisponivel).map(o => o.preco)) : null;
           html += `
-            <div class="cat-card" data-cat="${cat.id}" onclick="navigate('categoria', ${cat.id})">
-              <div class="cat-icon" style="background:${info.bg};color:${info.color}">${info.emoji}</div>
-              <div class="cat-name">${cat.nome}</div>
-              <div class="cat-count">${catProdutos.length} prod · ${catForns.length} forn</div>
-              <div class="cat-price">${menorPreco !== null ? 'a partir ' + formatMoney(menorPreco) : 'Sem orçamentos'}</div>
+            <div class="cat-card" data-cat="${cat.id}" onclick="navigate('categoria', ${cat.id})" style="background:${info.bg};border-color:${info.color}40;">
+              <div class="cat-icon" style="background:transparent;color:${info.color};font-size:28px;margin-bottom:8px">${info.emoji}</div>
+              <div class="cat-name" style="color:${info.color}">${cat.nome}</div>
+              <div class="cat-count" style="color:${info.color};opacity:0.7">${catProdutos.length} prod · ${catForns.length} forn</div>
+              <div class="cat-price" style="color:${info.color}">${menorPreco !== null ? 'a partir ' + formatMoney(menorPreco) : 'Sem orçamentos'}</div>
             </div>`;
         }
         html += `</div>`;
