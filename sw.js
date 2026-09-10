@@ -1,4 +1,6 @@
-const FALLBACK_VERSION = '2.0.0';
+// Só usado se o index.html não puder ser buscado (instalação 100% offline).
+// Valor fixo: a versão real SEMPRE vem do meta tag do index.html.
+const FALLBACK_VERSION = '0';
 
 const urlsToCache = [
   './',

@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#0c0c14" id="themeMeta">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="app-version" content="2.2.3">
+  <meta name="app-version" content="2.2.4">
 
   <style>
     :root {
@@ -274,6 +274,21 @@
     .form-check { display: flex; align-items: center; gap: 10px; padding: 4px 0; cursor: pointer; }
     .form-check input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--primary-600); cursor: pointer; flex-shrink: 0; }
     .form-check label { font-size: 14px; font-weight: 600; color: var(--text); cursor: pointer; }
+    .prod-card .card-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s; flex-shrink: 0; }
+    .prod-card:hover .card-actions { opacity: 1; }
+    .prod-card .card-actions.always { opacity: 1; }
+    .prod-card.selected { border-color: var(--primary-500); background: var(--surface-raised); }
+    .select-check { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border-light); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: transparent; transition: all 0.15s; }
+    .prod-card.selected .select-check { background: var(--primary-600); border-color: var(--primary-600); color: #fff; }
+    .select-bar { position: fixed; bottom: 78px; left: 50%; transform: translateX(-50%); width: calc(100% - 32px); max-width: 448px; background: var(--surface-raised); border: 1.5px solid var(--primary-500); border-radius: var(--radius-md); padding: 10px 14px; display: none; align-items: center; gap: 10px; z-index: 150; box-shadow: var(--shadow); }
+    .select-bar.active { display: flex; }
+    .select-bar-count { flex: 1; font-size: 13px; font-weight: 800; }
+    .select-bar .btn { width: auto; padding: 10px 14px; font-size: 13px; }
+    .suggest-card { margin: 0 16px 16px; padding: 14px; background: var(--info-soft); border: 1.5px solid var(--info); border-radius: var(--radius-md); }
+    .suggest-title { font-size: 13px; font-weight: 800; margin-bottom: 4px; }
+    .suggest-text { font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; line-height: 1.5; }
+    .suggest-actions { display: flex; gap: 8px; }
+    .suggest-actions .btn { padding: 10px; font-size: 13px; }
   </style>
 </head>
 <body>
@@ -331,7 +346,7 @@
       outros: { icon: 'tag', color: '#6b7280', bg: 'rgba(107,114,128,0.12)', emoji: '🏷️' },
     };
 
-    let state = { view: 'home', categoriaId: null, produtoId: null, tab: 'produtos' };
+    let state = { view: 'home', categoriaId: null, produtoId: null, tab: 'produtos', selecao: false, selecionados: new Set(), incluirArquivados: true, sugestaoOculta: false };
     let navHistory = [];
 
     function pushHistory(view, categoriaId, produtoId, tab) {
@@ -344,7 +359,7 @@
       if (e.state && e.state.view) {
         navHistory.pop();
         const prev = navHistory[navHistory.length - 1];
-        if (prev) { state = { ...prev }; refreshCurrentView(); }
+        if (prev) { state = { selecao: false, selecionados: new Set(), incluirArquivados: state.incluirArquivados !== false, sugestaoOculta: state.sugestaoOculta, ...prev }; refreshCurrentView(); }
         else { state = { view: 'home', categoriaId: null, produtoId: null, tab: 'produtos' }; renderHome(); }
       }
     });
@@ -504,6 +519,7 @@
 
       let totalGasto = 0, totalEconomia = 0;
       for (const p of produtos) {
+        if (p.arquivado) continue;
         const pos = orcamentos.filter(o => o.produtoId === p.id);
         const comprado = pos.find(o => o.comprado && !o.indisponivel);
         if (comprado) {
@@ -515,7 +531,7 @@
         }
       }
 
-      const recentes = [...produtos].sort((a,b) => b.criadoEm - a.criadoEm).slice(0, 5);
+      const recentes = produtos.filter(p => !p.arquivado).sort((a,b) => b.criadoEm - a.criadoEm).slice(0, 5);
 
       let html = `
         <div class="hero">
@@ -549,11 +565,32 @@
             <div class="stat-label">📉 Economia</div>
           </div>
           <div class="stat-box">
-            <div class="stat-value">${produtos.filter(p => orcamentos.filter(o => o.produtoId === p.id).some(o => o.comprado)).length}</div>
+            <div class="stat-value">${produtos.filter(p => !p.arquivado && orcamentos.filter(o => o.produtoId === p.id).some(o => o.comprado)).length}</div>
             <div class="stat-label">📦 Comprados</div>
           </div>
         </div>
       `;
+
+      const trintaDias = 30 * 24 * 60 * 60 * 1000;
+      const sugeridos = produtos.filter(p => {
+        if (p.arquivado) return false;
+        const pos = orcamentos.filter(o => o.produtoId === p.id);
+        if (pos.length === 0 || pos.some(o => o.comprado)) return false;
+        const ultima = Math.max(...pos.map(o => new Date(o.data || o.criadoEm).getTime()));
+        return (Date.now() - ultima) > trintaDias;
+      });
+      if (sugeridos.length > 0 && !state.sugestaoOculta) {
+        const nomes = sugeridos.slice(0, 5).map(p => p.nome).join(', ') + (sugeridos.length > 5 ? ` e mais ${sugeridos.length - 5}...` : '');
+        html += `
+        <div class="suggest-card">
+          <div class="suggest-title">💡 Sugestão de limpeza</div>
+          <div class="suggest-text">${sugeridos.length} produto(s) orçados há mais de 30 dias sem compra:<br><strong>${nomes}</strong></div>
+          <div class="suggest-actions">
+            <button class="btn btn-primary" onclick="arquivarSugeridos()">📁 Arquivar todos</button>
+            <button class="btn" onclick="ignorarSugestao()">Ignorar</button>
+          </div>
+        </div>`;
+      }
 
       html += `<div class="chips-wrap" style="padding-top:16px;">`;
       html += `<div class="chip active" onclick="filterHome(this, null)">Todos (${categorias.length})</div>`;
@@ -569,7 +606,7 @@
       } else {
         html += `<div class="cat-grid" id="catGrid">`;
         for (const cat of categorias) {
-          const catProdutos = produtos.filter(p => p.categoriaId === cat.id);
+          const catProdutos = produtos.filter(p => p.categoriaId === cat.id && !p.arquivado);
           const catOrcamentos = orcamentos.filter(o => catProdutos.some(p => p.id === o.produtoId));
           const catForns = fornecedores.filter(f => f.categoriaId === cat.id);
           const info = CATEGORIA_ICONS[cat.tipo] || CATEGORIA_ICONS.outros;
@@ -656,6 +693,7 @@
 
     async function doSearch() {
       const query = document.getElementById('searchInput').value.trim();
+      const incluirArch = state.incluirArquivados !== false;
       const clearBtn = document.getElementById('searchClear');
       const homeContent = document.getElementById('homeContent');
       const container = document.getElementById('searchResults');
@@ -671,13 +709,14 @@
       const orcamentos = await dbGetAll('orcamentos');
 
       let results = produtos.filter(p => {
+        if (p.arquivado && !incluirArch) return false;
         return searchMatches(query, p.nome) || (p.descricao && searchMatches(query, p.descricao)) || (p.produtoPara && searchMatches(query, p.produtoPara));
       });
 
       const orcsMatch = orcamentos.filter(o => searchMatches(query, o.fornecedor));
       for (const o of orcsMatch) {
         const prod = produtos.find(p => p.id === o.produtoId);
-        if (prod && !results.some(r => r.id === prod.id)) {
+        if (prod && (incluirArch || !prod.arquivado) && !results.some(r => r.id === prod.id)) {
           results.push(prod);
         }
       }
@@ -714,7 +753,7 @@
       }).sort((a, b) => b._dataUltOrcRaw - a._dataUltOrcRaw);
 
       let html = '<div style="padding:8px 16px 16px;">';
-      html += '<div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:10px;">Resultados da busca</div>';
+      html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;"><div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;">Resultados da busca</div><div class="chip ${incluirArch ? 'active' : ''}" style="padding:5px 12px;font-size:11px;" onclick="toggleIncluirArquivados()">📁 Incluir arquivados</div></div>`;
       for (const prod of results) {
         const cat = categorias.find(c => c.id === prod.categoriaId);
         const fornMatch = orcamentos.find(o => o.produtoId === prod.id && searchMatches(query, o.fornecedor));
@@ -723,7 +762,7 @@
           <div class="search-result-item" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='var(--primary-500)'" onmouseout="this.style.borderColor='var(--border)'" onclick="navigate('produto', ${prod.categoriaId}, ${prod.id}); clearSearch()">
             <div class="search-result-icon" style="width:40px;height:40px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;background:${info.bg};color:${info.color}">${info.emoji}</div>
             <div class="search-result-info" style="flex:1;min-width:0;">
-              <div class="search-result-name" style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);">${prod.nome}${prod._badgeDisplay}</div>
+              <div class="search-result-name" style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);">${prod.nome}${prod.arquivado ? ' <span style="font-size:9px;font-weight:800;color:var(--warning);background:var(--warning-soft);padding:2px 6px;border-radius:var(--radius-pill);">📁 ARQUIVADO</span>' : ''}${prod._badgeDisplay}</div>
               <div class="search-result-meta" style="font-size:11px;color:var(--text-muted);">${cat ? cat.nome : ''}${prod.descricao ? ' · ' + prod.descricao : ''}${prod.produtoPara ? ' · 👤 ' + prod.produtoPara : ''}${fornMatch ? ' · 🏪 ' + fornMatch.fornecedor : ''}${prod._dataUltOrc ? ' · 📅 ' + prod._dataUltOrc : ''}</div>
             </div>
             ${prod._precoDisplay !== null ? `<div class="search-result-price" style="font-size:14px;font-weight:800;color:var(--primary-600);white-space:nowrap;">${formatMoney(prod._precoDisplay)}</div>` : ''}
@@ -753,6 +792,7 @@
           <div class="cat-header-top">
             <button class="hero-btn" onclick="navigate('home')">${ICONS.back}</button>
             <div class="hero-actions">
+              <button class="hero-btn" onclick="arquivarTodosCategoria(${categoria.id})" title="Arquivar todos os produtos">📁</button>
               <button class="hero-btn" onclick="openModal('modalEditCategoria')">${ICONS.edit}</button>
               <button class="hero-btn" onclick="excluirCategoria(${categoria.id})">${ICONS.trash}</button>
             </div>
@@ -771,21 +811,28 @@
       `;
 
       if (tab === 'produtos') {
-        // Calcular contadores para os chips
-        const countPendente = produtos.filter(p => orcamentos.filter(o => o.produtoId === p.id).length === 0).length;
-        const countOrcado = produtos.filter(p => {
+        // Calcular contadores para os chips (arquivados ficam separados)
+        const ativos = produtos.filter(p => !p.arquivado);
+        const countPendente = ativos.filter(p => orcamentos.filter(o => o.produtoId === p.id).length === 0).length;
+        const countOrcado = ativos.filter(p => {
           const pos = orcamentos.filter(o => o.produtoId === p.id);
           return pos.length > 0 && !pos.some(o => o.comprado);
         }).length;
-        const countComprado = produtos.filter(p => orcamentos.filter(o => o.produtoId === p.id).some(o => o.comprado)).length;
+        const countComprado = ativos.filter(p => orcamentos.filter(o => o.produtoId === p.id).some(o => o.comprado)).length;
+        const countArquivado = produtos.filter(p => p.arquivado).length;
         const filtroAtivo = state.produtoFiltro || 'todos';
 
-        html += `<div class="chips-wrap" style="padding:12px 16px 4px;">`;
-        html += `<div class="chip ${filtroAtivo==='todos'?'active':''}" onclick="filtrarProdutos('todos')">Todos (${produtos.length})</div>`;
-        html += `<div class="chip ${filtroAtivo==='pendente'?'active':''}" onclick="filtrarProdutos('pendente')">📋 Para Orçar (${countPendente})</div>`;
-        html += `<div class="chip ${filtroAtivo==='orcado'?'active':''}" onclick="filtrarProdutos('orcado')">🏷️ Orçados (${countOrcado})</div>`;
-        html += `<div class="chip ${filtroAtivo==='comprado'?'active':''}" onclick="filtrarProdutos('comprado')">✅ Comprados (${countComprado})</div>`;
+        html += `<div style="display:flex;align-items:center;padding:12px 16px 4px;"><div class="chips-wrap" style="padding:0;flex:1;">`;
+        html += `<div class="chip ${filtroAtivo==='todos'?'active':''}" data-filter="todos" onclick="filtrarProdutos('todos')">Todos (${ativos.length})</div>`;
+        html += `<div class="chip ${filtroAtivo==='pendente'?'active':''}" data-filter="pendente" onclick="filtrarProdutos('pendente')">📋 Para Orçar (${countPendente})</div>`;
+        html += `<div class="chip ${filtroAtivo==='orcado'?'active':''}" data-filter="orcado" onclick="filtrarProdutos('orcado')">🏷️ Orçados (${countOrcado})</div>`;
+        html += `<div class="chip ${filtroAtivo==='comprado'?'active':''}" data-filter="comprado" onclick="filtrarProdutos('comprado')">✅ Comprados (${countComprado})</div>`;
+        html += `<div class="chip ${filtroAtivo==='arquivado'?'active':''}" data-filter="arquivado" onclick="filtrarProdutos('arquivado')">📁 Arquivados (${countArquivado})</div>`;
         html += `</div>`;
+        html += `<button class="icon-btn" style="flex-shrink:0;margin-left:8px;" onclick="toggleSelecao()" title="Selecionar produtos">${ICONS.check}</button></div>`;
+        if (filtroAtivo === 'arquivado' && countArquivado > 0) {
+          html += `<div class="section-title" style="padding-top:4px;">Produtos arquivados<a onclick="desarquivarTodosCategoria(${categoria.id})">Desarquivar todos</a></div>`;
+        }
 
         if (produtos.length === 0) {
           html += `<div class="empty"><div class="empty-icon">📦</div><div class="empty-title">Nenhum produto</div><div class="empty-text">Adicione o primeiro produto para começar</div></div>`;
@@ -796,7 +843,7 @@
             const ob = orcamentos.filter(o => o.produtoId === b.id);
             const sa = oa.some(o => o.comprado) ? 2 : (oa.length > 0 ? 1 : 0);
             const sb = ob.some(o => o.comprado) ? 2 : (ob.length > 0 ? 1 : 0);
-            return sa - sb;
+            return (!!a.arquivado - !!b.arquivado) || (sa - sb);
           });
 
           for (const prod of produtosOrdenados) {
@@ -814,7 +861,13 @@
             let badgeStatus = '';
             let statusText = '';
             let precoCard = null;
-            if (temComprado) {
+            if (prod.arquivado) {
+              statusProd = 'arquivado';
+              badgeStatus = '<span style="font-size:10px;font-weight:800;color:var(--warning);background:var(--warning-soft);padding:2px 8px;border-radius:var(--radius-pill);margin-left:6px;vertical-align:middle;">📁 Arquivado</span>';
+              statusText = '<span style="color:var(--warning)">📁 Arquivado</span>';
+              const orcsDisp = prodOrcs.filter(o => !o.indisponivel);
+              if (orcsDisp.length > 0) precoCard = Math.min(...orcsDisp.map(o => o.preco));
+            } else if (temComprado) {
               statusProd = 'comprado';
               badgeStatus = '<span class="selo-comprado">✅ Comprado</span>';
               statusText = '<strong style="color:var(--success)">✅ Comprado</strong>';
@@ -829,12 +882,18 @@
               badgeStatus = '<span style="font-size:10px;font-weight:800;color:var(--text-muted);background:var(--surface-raised);padding:2px 8px;border-radius:var(--radius-pill);margin-left:6px;vertical-align:middle;border:1px solid var(--border);">📋 Pendente</span>';
               statusText = '<span style="color:var(--text-muted)">📋 Sem orçamento</span>';
             }
+            const isSelected = state.selecao && state.selecionados && state.selecionados.has(prod.id);
+            const hideCard = statusProd === 'arquivado' && filtroAtivo !== 'arquivado';
             html += `
-              <div class="prod-card" data-status="${statusProd}" onclick="navigate('produto', ${categoria.id}, ${prod.id})">
+              <div class="prod-card ${isSelected ? 'selected' : ''}" data-status="${statusProd}" data-pid="${prod.id}" style="display:${hideCard ? 'none' : ''}" onclick="onProdCardClick(${categoria.id}, ${prod.id})">
                 <div class="prod-card-header" style="gap:0;">
+                  ${state.selecao ? '<div class="select-check" style="margin-right:10px;">✓</div>' : ''}
                   <div style="flex:1;min-width:0">
                     <div class="prod-card-title">${prod.nome}${badgeStatus}</div>
                     <div class="prod-card-meta">${prod.descricao || ''}${prod.produtoPara ? ' · 👤 ' + prod.produtoPara : ''}</div>
+                  </div>
+                  <div class="card-actions ${prod.arquivado ? 'always' : ''}">
+                    <button class="icon-btn" onclick="event.stopPropagation(); toggleArquivarProduto(${prod.id}, ${categoria.id})" title="${prod.arquivado ? 'Desarquivar' : 'Arquivar'}">${prod.arquivado ? '📤' : '📁'}</button>
                   </div>
                 </div>
                 <div class="prod-card-footer">
@@ -845,6 +904,14 @@
           }
         }
         html += `</div>`;
+        if (state.selecao) {
+          html += `
+          <div class="select-bar active">
+            <span class="select-bar-count" id="selectCount">${(state.selecionados || new Set()).size} selecionado(s)</span>
+            <button class="btn btn-primary" onclick="arquivarSelecionados()">📁 Arquivar</button>
+            <button class="btn" onclick="sairSelecao()">Cancelar</button>
+          </div>`;
+        }
         html += renderBottomNav('home');
         html += `
           <div class="modal-overlay" id="modalProduto">
@@ -959,6 +1026,7 @@
           <div class="cat-header-top">
             <button class="hero-btn" onclick="navigate('categoria', ${categoriaId})">${ICONS.back}</button>
             <div class="hero-actions">
+              <button class="hero-btn" onclick="toggleArquivarProduto(${produto.id}, ${categoriaId}, true)" title="${produto.arquivado ? 'Desarquivar produto' : 'Arquivar produto'}">${produto.arquivado ? '📤' : '📁'}</button>
               <button class="hero-btn" onclick="compartilharOrcamentos(${produto.id}, ${categoriaId})" title="Compartilhar">📤</button>
               <button class="hero-btn" onclick="openModal('modalEditProduto')">${ICONS.edit}</button>
               <button class="hero-btn" onclick="excluirProduto(${produto.id}, ${categoriaId})">${ICONS.trash}</button>
@@ -973,6 +1041,14 @@
         </div>
         <div class="content">
       `;
+
+      if (produto.arquivado) {
+        html += `
+          <div style="margin:12px 16px 0;padding:12px 14px;background:var(--warning-soft);border:1.5px solid var(--warning);border-radius:var(--radius-md);display:flex;align-items:center;gap:10px;font-size:13px;">
+            <span>📁 Este produto está <strong>arquivado</strong>.</span>
+            <button class="btn" style="width:auto;padding:8px 12px;font-size:12px;margin-left:auto;flex-shrink:0;" onclick="toggleArquivarProduto(${produto.id}, ${categoriaId}, true)">Desarquivar</button>
+          </div>`;
+      }
 
       if (sorted.length > 0) {
         const disp = sorted.filter(o => !o.indisponivel);
@@ -1152,7 +1228,7 @@
       const orcamentos = await dbGetAll('orcamentos');
       const themeIcon = getTheme() === 'dark' ? ICONS.sun : ICONS.moon;
 
-      const prodData = produtos.map(p => {
+      const prodData = produtos.filter(p => !p.arquivado).map(p => {
         const count = orcamentos.filter(o => o.produtoId === p.id).length;
         return { nome: p.nome, count };
       }).filter(p => p.count > 0).sort((a,b) => b.count - a.count).slice(0, 5);
@@ -1175,6 +1251,7 @@
 
       let totalGasto = 0, totalEconomia = 0, totalOrcs = orcamentos.length;
       for (const p of produtos) {
+        if (p.arquivado) continue;
         const pos = orcamentos.filter(o => o.produtoId === p.id);
         const comprado = pos.find(o => o.comprado && !o.indisponivel);
         if (comprado) {
@@ -1220,7 +1297,7 @@
         html += `</div>`;
       }
 
-      const semOrc = produtos.filter(p => !orcamentos.some(o => o.produtoId === p.id));
+      const semOrc = produtos.filter(p => !p.arquivado && !orcamentos.some(o => o.produtoId === p.id));
       if (semOrc.length > 0) {
         html += `<div class="report-card"><div class="report-title">⚠️ Produtos sem orçamento (${semOrc.length})</div>`;
         for (const p of semOrc) {
@@ -1649,29 +1726,115 @@
       navigate('home');
     }
 
+    async function toggleArquivarProduto(id, categoriaId, stay) {
+      const prod = (await dbGetAll('produtos')).find(p => p.id === id);
+      if (!prod) return;
+      prod.arquivado = !prod.arquivado;
+      await dbPut('produtos', prod);
+      toast(prod.arquivado ? 'Produto arquivado!' : 'Produto desarquivado!', 'success');
+      if (stay) renderProduto(categoriaId, id);
+      else renderCategoria(categoriaId);
+    }
+
+    async function arquivarTodosCategoria(categoriaId) {
+      const produtos = await dbGetByIndex('produtos', 'categoriaId', categoriaId);
+      const ativos = produtos.filter(p => !p.arquivado);
+      if (ativos.length === 0) { toast('Nenhum produto ativo para arquivar', 'info'); return; }
+      if (!confirm(`Arquivar todos os ${ativos.length} produtos desta categoria? Eles sairão das listas de pendentes/orçados.`)) return;
+      for (const p of ativos) { p.arquivado = true; await dbPut('produtos', p); }
+      toast(`${ativos.length} produtos arquivados!`, 'success');
+      renderCategoria(categoriaId);
+    }
+
+    async function desarquivarTodosCategoria(categoriaId) {
+      const produtos = await dbGetByIndex('produtos', 'categoriaId', categoriaId);
+      const arquivados = produtos.filter(p => p.arquivado);
+      if (arquivados.length === 0) return;
+      if (!confirm(`Desarquivar todos os ${arquivados.length} produtos desta categoria?`)) return;
+      for (const p of arquivados) { p.arquivado = false; await dbPut('produtos', p); }
+      toast(`${arquivados.length} produtos desarquivados!`, 'success');
+      renderCategoria(categoriaId);
+    }
+
+    function toggleSelecao() {
+      state.selecao = !state.selecao;
+      state.selecionados = new Set();
+      renderCategoria(state.categoriaId);
+    }
+    function sairSelecao() {
+      state.selecao = false;
+      state.selecionados = new Set();
+      renderCategoria(state.categoriaId);
+    }
+    function onProdCardClick(categoriaId, produtoId) {
+      if (state.selecao) {
+        if (!state.selecionados) state.selecionados = new Set();
+        if (state.selecionados.has(produtoId)) state.selecionados.delete(produtoId);
+        else state.selecionados.add(produtoId);
+        const card = document.querySelector(`.prod-card[data-pid="${produtoId}"]`);
+        if (card) card.classList.toggle('selected', state.selecionados.has(produtoId));
+        const count = document.getElementById('selectCount');
+        if (count) count.textContent = `${state.selecionados.size} selecionado(s)`;
+        return;
+      }
+      navigate('produto', categoriaId, produtoId);
+    }
+    async function arquivarSelecionados() {
+      if (!state.selecionados || state.selecionados.size === 0) { toast('Selecione ao menos 1 produto', 'warning'); return; }
+      if (!confirm(`Arquivar ${state.selecionados.size} produto(s) selecionado(s)?`)) return;
+      const produtos = await dbGetAll('produtos');
+      let n = 0;
+      for (const p of produtos) {
+        if (state.selecionados.has(p.id)) { p.arquivado = true; await dbPut('produtos', p); n++; }
+      }
+      state.selecao = false;
+      state.selecionados = new Set();
+      toast(`${n} produtos arquivados!`, 'success');
+      renderCategoria(state.categoriaId);
+    }
+
+    function toggleIncluirArquivados() {
+      state.incluirArquivados = !(state.incluirArquivados !== false);
+      doSearch();
+    }
+
+    function ignorarSugestao() {
+      state.sugestaoOculta = true;
+      renderHome();
+    }
+    async function arquivarSugeridos() {
+      const produtos = await dbGetAll('produtos');
+      const orcamentos = await dbGetAll('orcamentos');
+      const trintaDias = 30 * 24 * 60 * 60 * 1000;
+      const sugeridos = produtos.filter(p => {
+        if (p.arquivado) return false;
+        const pos = orcamentos.filter(o => o.produtoId === p.id);
+        if (pos.length === 0 || pos.some(o => o.comprado)) return false;
+        const ultima = Math.max(...pos.map(o => new Date(o.data || o.criadoEm).getTime()));
+        return (Date.now() - ultima) > trintaDias;
+      });
+      if (sugeridos.length === 0) return;
+      for (const p of sugeridos) { p.arquivado = true; await dbPut('produtos', p); }
+      toast(`${sugeridos.length} produtos arquivados!`, 'success');
+      renderHome();
+    }
+
     function switchTab(tab) { state.tab = tab; renderCategoria(state.categoriaId); }
 
     function filtrarProdutos(filtro) {
       state.produtoFiltro = filtro;
-      const cards = document.querySelectorAll('.prod-card');
-      const chips = document.querySelectorAll('.chips-wrap .chip');
-      chips.forEach((c, i) => {
-        const filtros = ['todos', 'pendente', 'orcado', 'comprado'];
-        if (filtros[i] === filtro) c.classList.add('active');
-        else c.classList.remove('active');
+      document.querySelectorAll('.chip[data-filter]').forEach(c => {
+        c.classList.toggle('active', c.dataset.filter === filtro);
       });
-      cards.forEach(card => {
+      document.querySelectorAll('.prod-card').forEach(card => {
         const st = card.dataset.status;
-        if (filtro === 'todos' || st === filtro) {
-          card.style.display = '';
-        } else {
-          card.style.display = 'none';
-        }
+        const show = filtro === 'todos' ? st !== 'arquivado' : st === filtro;
+        card.style.display = show ? '' : 'none';
       });
     }
 
     function navigate(view, categoriaId, produtoId) {
-      const newState = { view, categoriaId, produtoId, tab: state.tab || 'produtos' };
+      const newState = { view, categoriaId, produtoId, tab: state.tab || 'produtos', selecao: false, selecionados: new Set(), incluirArquivados: state.incluirArquivados !== false, sugestaoOculta: state.sugestaoOculta };
       state = newState;
       if (view !== 'home' || navHistory.length === 0) {
         pushHistory(view, categoriaId, produtoId, state.tab);
