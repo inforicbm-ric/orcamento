@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#0c0c14" id="themeMeta">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="app-version" content="2.2.8">
+  <meta name="app-version" content="2.2.9">
 
   <style>
     :root {
@@ -290,7 +290,7 @@
     .suggest-actions { display: flex; gap: 8px; }
     .suggest-actions .btn { padding: 10px; font-size: 13px; }
   </style>
-<script src="/_aistudio-iframe.js?v=2c34bde1"></script></head>
+</head>
 <body>
   <div class="update-banner" id="update-banner">
     <div class="update-banner-text">🔄 Nova versão disponível!</div>
@@ -304,7 +304,11 @@
 
   <script>
     const DB_NAME = 'OrcaFacilDB_v2'; const DB_VERSION = 1; let db = null;
-    const APP_VERSION = '2.2.7';
+    function getAppVersion() {
+      const meta = document.querySelector('meta[name="app-version"]');
+      return (meta && meta.getAttribute('content')) ? meta.getAttribute('content').trim() : '2.2.8';
+    }
+    const APP_VERSION = getAppVersion();
 
     const ICONS = {
       refresh: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>`,
@@ -1866,7 +1870,8 @@
     let newWorker = null;
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js').then((reg) => {
+        const swUrl = 'sw.js?v=' + encodeURIComponent(getAppVersion());
+        navigator.serviceWorker.register(swUrl).then((reg) => {
           reg.addEventListener('updatefound', () => {
             newWorker = reg.installing;
             newWorker.addEventListener('statechange', () => {
@@ -1897,6 +1902,7 @@
     }
 
     async function verificarAtualizacao() {
+      const v = getAppVersion();
       toast('Verificando atualizações...', 'info');
       if ('serviceWorker' in navigator) {
         try {
@@ -1918,14 +1924,14 @@
         try {
           const keys = await caches.keys();
           for (const key of keys) {
-            if (key !== 'orcafacil-v' + APP_VERSION) {
+            if (key !== 'orcafacil-v' + v) {
               await caches.delete(key);
             }
           }
         } catch (e) {}
       }
       setTimeout(() => {
-        toast('OrçaFácil na versão mais recente (v' + APP_VERSION + ')!', 'success');
+        toast('OrçaFácil na versão mais recente (v' + v + ')!', 'success');
         setTimeout(() => {
           window.location.reload();
         }, 600);
