@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#0c0c14" id="themeMeta">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="app-version" content="2.2.4">
+  <meta name="app-version" content="2.2.5">
 
   <style>
     :root {
@@ -792,7 +792,7 @@
           <div class="cat-header-top">
             <button class="hero-btn" onclick="navigate('home')">${ICONS.back}</button>
             <div class="hero-actions">
-              <button class="hero-btn" onclick="arquivarTodosCategoria(${categoria.id})" title="Arquivar todos os produtos">📁</button>
+              <button class="hero-btn" onclick="${(state.produtoFiltro || 'todos')==='arquivado' ? 'desarquivarTodosCategoria(' + categoria.id + ')' : 'arquivarTodosCategoria(' + categoria.id + ')'}" title="${(state.produtoFiltro || 'todos')==='arquivado' ? 'Desarquivar todos os produtos' : 'Arquivar produtos do filtro atual'}">${(state.produtoFiltro || 'todos')==='arquivado' ? '📤' : '📁'}</button>
               <button class="hero-btn" onclick="openModal('modalEditCategoria')">${ICONS.edit}</button>
               <button class="hero-btn" onclick="excluirCategoria(${categoria.id})">${ICONS.trash}</button>
             </div>
@@ -905,10 +905,11 @@
         }
         html += `</div>`;
         if (state.selecao) {
+          const isArchView = (state.produtoFiltro || 'todos') === 'arquivado';
           html += `
           <div class="select-bar active">
             <span class="select-bar-count" id="selectCount">${(state.selecionados || new Set()).size} selecionado(s)</span>
-            <button class="btn btn-primary" onclick="arquivarSelecionados()">📁 Arquivar</button>
+            <button class="btn btn-primary" onclick="${isArchView ? 'desarquivarSelecionados()' : 'arquivarSelecionados()'}">${isArchView ? '📤 Desarquivar' : '📁 Arquivar'}</button>
             <button class="btn" onclick="sairSelecao()">Cancelar</button>
           </div>`;
         }
@@ -1738,11 +1739,21 @@
 
     async function arquivarTodosCategoria(categoriaId) {
       const produtos = await dbGetByIndex('produtos', 'categoriaId', categoriaId);
+      const orcamentos = await dbGetAll('orcamentos');
+      const filtro = state.produtoFiltro || 'todos';
       const ativos = produtos.filter(p => !p.arquivado);
-      if (ativos.length === 0) { toast('Nenhum produto ativo para arquivar', 'info'); return; }
-      if (!confirm(`Arquivar todos os ${ativos.length} produtos desta categoria? Eles sairão das listas de pendentes/orçados.`)) return;
-      for (const p of ativos) { p.arquivado = true; await dbPut('produtos', p); }
-      toast(`${ativos.length} produtos arquivados!`, 'success');
+      const statusOf = p => {
+        const pos = orcamentos.filter(o => o.produtoId === p.id);
+        if (pos.some(o => o.comprado)) return 'comprado';
+        if (pos.length > 0) return 'orcado';
+        return 'pendente';
+      };
+      const alvos = filtro === 'todos' ? ativos : ativos.filter(p => statusOf(p) === filtro);
+      if (alvos.length === 0) { toast('Nenhum produto deste filtro para arquivar', 'info'); return; }
+      const label = { pendente: 'PENDENTES (para orçar)', orcado: 'ORÇADOS', comprado: 'COMPRADOS' }[filtro] || 'ativos';
+      if (!confirm(`Arquivar os ${alvos.length} produtos ${label} desta categoria?`)) return;
+      for (const p of alvos) { p.arquivado = true; await dbPut('produtos', p); }
+      toast(`${alvos.length} produtos arquivados!`, 'success');
       renderCategoria(categoriaId);
     }
 
@@ -1790,6 +1801,20 @@
       state.selecao = false;
       state.selecionados = new Set();
       toast(`${n} produtos arquivados!`, 'success');
+      renderCategoria(state.categoriaId);
+    }
+
+    async function desarquivarSelecionados() {
+      if (!state.selecionados || state.selecionados.size === 0) { toast('Selecione ao menos 1 produto', 'warning'); return; }
+      if (!confirm(`Desarquivar ${state.selecionados.size} produto(s) selecionado(s)?`)) return;
+      const produtos = await dbGetAll('produtos');
+      let n = 0;
+      for (const p of produtos) {
+        if (state.selecionados.has(p.id)) { p.arquivado = false; await dbPut('produtos', p); n++; }
+      }
+      state.selecao = false;
+      state.selecionados = new Set();
+      toast(`${n} produtos desarquivados!`, 'success');
       renderCategoria(state.categoriaId);
     }
 
