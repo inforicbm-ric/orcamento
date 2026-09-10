@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#0c0c14" id="themeMeta">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="app-version" content="2.2.9">
+  <meta name="app-version" content="2.3.0">
 
   <style>
     :root {
@@ -351,7 +351,7 @@
       outros: { icon: 'tag', color: '#6b7280', bg: 'rgba(107,114,128,0.12)', emoji: '🏷️' },
     };
 
-    let state = { view: 'home', categoriaId: null, produtoId: null, tab: 'produtos', produtoFiltro: 'todos', selecao: false, selecionados: new Set(), incluirArquivados: true, sugestaoOculta: false };
+    let state = { view: 'home', categoriaId: null, produtoId: null, tab: 'produtos', produtoFiltro: 'todos', selecao: false, selecionados: new Set(), incluirArquivados: true, sugestaoOculta: false, homeCatFiltro: null };
     let navHistory = [];
 
     function pushHistory(view, categoriaId, produtoId, tab) {
@@ -527,9 +527,11 @@
       const fornecedores = await dbGetAll('fornecedores');
       const themeIcon = getTheme() === 'dark' ? ICONS.sun : ICONS.moon;
 
-      let totalGasto = 0, totalEconomia = 0;
+      const catFiltroAtual = state.homeCatFiltro !== undefined ? state.homeCatFiltro : null;
+      let totalGasto = 0, totalEconomia = 0, compradosCount = 0;
       for (const p of produtos) {
         if (p.arquivado) continue;
+        if (catFiltroAtual !== null && p.categoriaId !== catFiltroAtual) continue;
         const pos = orcamentos.filter(o => o.produtoId === p.id);
         const comprado = pos.find(o => o.comprado && !o.indisponivel);
         if (comprado) {
@@ -539,9 +541,14 @@
             totalEconomia += Math.max(...precosDisp) - comprado.preco;
           }
         }
+        if (pos.some(o => o.comprado)) {
+          compradosCount++;
+        }
       }
 
       const recentes = produtos.filter(p => !p.arquivado).sort((a,b) => b.criadoEm - a.criadoEm).slice(0, 5);
+      const activeCatObj = catFiltroAtual ? categorias.find(c => c.id === catFiltroAtual) : null;
+      const activeLabel = activeCatObj ? `· ${activeCatObj.nome}` : '· Todas as Categorias';
 
       let html = `
         <div class="hero">
@@ -565,17 +572,33 @@
         <div id="searchResults"></div>
         <div id="homeContent">
 
+        <div class="chips-wrap" id="homeChips" style="padding-top:12px;padding-bottom:10px;">
+          <div class="chip ${catFiltroAtual === null ? 'active' : ''}" data-cat="all" onclick="filterHome(this, null)">🌐 Todos (${categorias.length})</div>
+          ${categorias.map(cat => {
+            const count = produtos.filter(p => p.categoriaId === cat.id && !p.arquivado).length;
+            const info = CATEGORIA_ICONS[cat.tipo] || CATEGORIA_ICONS.outros;
+            const isAct = catFiltroAtual === cat.id ? 'active' : '';
+            return `<div class="chip ${isAct}" data-cat="${cat.id}" onclick="filterHome(this, ${cat.id})">${info.emoji} ${cat.nome} (${count})</div>`;
+          }).join('')}
+        </div>
+
+        <div style="padding:0 16px 6px;display:flex;justify-content:space-between;align-items:center;">
+          <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">
+            Resumo <span id="statCategoryLabel" style="color:var(--primary-500);text-transform:none;font-weight:800;">${activeLabel}</span>
+          </div>
+        </div>
+
         <div class="stats-row">
           <div class="stat-box">
-            <div class="stat-value">${orcamentos.length > 0 && produtos.some(p => orcamentos.filter(o => o.produtoId === p.id).some(o => o.comprado)) ? formatMoney(totalGasto) : '—'}</div>
+            <div class="stat-value" id="statTotal">${totalGasto > 0 ? formatMoney(totalGasto) : '—'}</div>
             <div class="stat-label">💰 Total</div>
           </div>
           <div class="stat-box">
-            <div class="stat-value">${orcamentos.length > 0 && produtos.some(p => orcamentos.filter(o => o.produtoId === p.id).some(o => o.comprado)) ? formatMoney(totalEconomia) : '—'}</div>
+            <div class="stat-value" id="statEconomia">${totalEconomia > 0 ? formatMoney(totalEconomia) : '—'}</div>
             <div class="stat-label">📉 Economia</div>
           </div>
           <div class="stat-box">
-            <div class="stat-value">${produtos.filter(p => !p.arquivado && orcamentos.filter(o => o.produtoId === p.id).some(o => o.comprado)).length}</div>
+            <div class="stat-value" id="statComprados">${compradosCount}</div>
             <div class="stat-label">📦 Comprados</div>
           </div>
         </div>
@@ -602,15 +625,7 @@
         </div>`;
       }
 
-      html += `<div class="chips-wrap" style="padding-top:16px;">`;
-      html += `<div class="chip active" onclick="filterHome(this, null)">Todos (${categorias.length})</div>`;
-      for (const cat of categorias) {
-        const count = produtos.filter(p => p.categoriaId === cat.id).length;
-        html += `<div class="chip" onclick="filterHome(this, ${cat.id})">${cat.nome} (${count})</div>`;
-      }
-      html += `</div>`;
-
-      html += `<div class="section-title" style="padding-top:8px;">Categorias</div>`;
+      html += `<div class="section-title" style="padding-top:4px;">Categorias</div>`;
       if (categorias.length === 0) {
         html += `<div class="empty"><div class="empty-icon">📂</div><div class="empty-title">Nenhuma categoria</div><div class="empty-text">Adicione sua primeira categoria</div></div>`;
       } else {
@@ -622,7 +637,7 @@
           const info = CATEGORIA_ICONS[cat.tipo] || CATEGORIA_ICONS.outros;
           const menorPreco = catOrcamentos.length > 0 ? Math.min(...catOrcamentos.filter(o => !o.indisponivel).map(o => o.preco)) : null;
           html += `
-            <div class="cat-card" data-cat="${cat.id}" onclick="navigate('categoria', ${cat.id})" style="background:${info.bg};border-color:${info.color}40;">
+            <div class="cat-card" data-cat="${cat.id}" onclick="navigate('categoria', ${cat.id})" style="background:${info.bg};border-color:${info.color}40;${catFiltroAtual !== null && catFiltroAtual !== cat.id ? 'display:none;' : ''}">
               <div class="cat-icon" style="background:transparent;color:${info.color};font-size:28px;margin-bottom:8px">${info.emoji}</div>
               <div class="cat-name" style="color:${info.color}">${cat.nome}</div>
               <div class="cat-count" style="color:${info.color};opacity:0.7">${catProdutos.length} prod · ${catForns.length} forn</div>
@@ -651,7 +666,7 @@
           }
           const info = cat ? (CATEGORIA_ICONS[cat.tipo] || CATEGORIA_ICONS.outros) : CATEGORIA_ICONS.outros;
           html += `
-            <div class="recent-item" onclick="navigate('produto', ${cat ? cat.id : 0}, ${prod.id})">
+            <div class="recent-item" data-cat="${prod.categoriaId}" onclick="navigate('produto', ${cat ? cat.id : 0}, ${prod.id})" style="${catFiltroAtual !== null && catFiltroAtual !== prod.categoriaId ? 'display:none;' : ''}">
               <div class="recent-rank" style="background:${info.bg};color:${info.color};border:none;font-size:16px;">${info.emoji}</div>
               <div class="recent-info">
                 <div class="recent-prod">${prod.nome}${prod.produtoPara ? ' · 👤 ' + prod.produtoPara : ''}${statusBadge}</div>
@@ -688,15 +703,69 @@
       document.getElementById('app').innerHTML = html;
     }
 
-    function filterHome(el, catId) {
-      document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-      el.classList.add('active');
+    async function filterHome(el, catId) {
+      state.homeCatFiltro = catId;
+      document.querySelectorAll('#homeChips .chip').forEach(c => c.classList.remove('active'));
+      if (el) el.classList.add('active');
+
+      const categorias = await dbGetAll('categorias');
+      const produtos = await dbGetAll('produtos');
+      const orcamentos = await dbGetAll('orcamentos');
+
+      // 1. Recalcular e atualizar o Dashboard instantaneamente
+      let totalGasto = 0, totalEconomia = 0, compradosCount = 0;
+      for (const p of produtos) {
+        if (p.arquivado) continue;
+        if (catId !== null && p.categoriaId !== catId) continue;
+        const pos = orcamentos.filter(o => o.produtoId === p.id);
+        const comprado = pos.find(o => o.comprado && !o.indisponivel);
+        if (comprado) {
+          totalGasto += comprado.preco;
+          const precosDisp = pos.filter(o => !o.indisponivel).map(o => o.preco);
+          if (precosDisp.length > 0) {
+            totalEconomia += Math.max(...precosDisp) - comprado.preco;
+          }
+        }
+        if (pos.some(o => o.comprado)) {
+          compradosCount++;
+        }
+      }
+
+      const statTotalEl = document.getElementById('statTotal');
+      const statEconomiaEl = document.getElementById('statEconomia');
+      const statCompradosEl = document.getElementById('statComprados');
+      const statCategoryLabel = document.getElementById('statCategoryLabel');
+
+      if (statTotalEl) statTotalEl.textContent = totalGasto > 0 ? formatMoney(totalGasto) : '—';
+      if (statEconomiaEl) statEconomiaEl.textContent = totalEconomia > 0 ? formatMoney(totalEconomia) : '—';
+      if (statCompradosEl) statCompradosEl.textContent = compradosCount;
+
+      if (statCategoryLabel) {
+        if (catId === null) {
+          statCategoryLabel.textContent = '· Todas as Categorias';
+        } else {
+          const cat = categorias.find(c => c.id === catId);
+          statCategoryLabel.textContent = cat ? `· ${cat.nome}` : '';
+        }
+      }
+
+      // 2. Filtrar cards de categorias
       const cards = document.querySelectorAll('.cat-card');
       cards.forEach(card => {
         if (catId === null || parseInt(card.dataset.cat) === catId) {
           card.style.display = '';
         } else {
           card.style.display = 'none';
+        }
+      });
+
+      // 3. Filtrar lista de produtos recentes
+      const recents = document.querySelectorAll('.recent-item');
+      recents.forEach(item => {
+        if (catId === null || parseInt(item.dataset.cat) === catId) {
+          item.style.display = '';
+        } else {
+          item.style.display = 'none';
         }
       });
     }
