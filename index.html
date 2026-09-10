@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#0c0c14" id="themeMeta">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="app-version" content="2.2.5">
+  <meta name="app-version" content="2.2.6">
 
   <style>
     :root {
@@ -290,7 +290,7 @@
     .suggest-actions { display: flex; gap: 8px; }
     .suggest-actions .btn { padding: 10px; font-size: 13px; }
   </style>
-</head>
+<script src="/_aistudio-iframe.js?v=2c34bde1"></script></head>
 <body>
   <div class="update-banner" id="update-banner">
     <div class="update-banner-text">🔄 Nova versão disponível!</div>
@@ -303,7 +303,6 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <script>
-
     const DB_NAME = 'OrcaFacilDB_v2'; const DB_VERSION = 1; let db = null;
 
     const ICONS = {
@@ -346,11 +345,11 @@
       outros: { icon: 'tag', color: '#6b7280', bg: 'rgba(107,114,128,0.12)', emoji: '🏷️' },
     };
 
-    let state = { view: 'home', categoriaId: null, produtoId: null, tab: 'produtos', selecao: false, selecionados: new Set(), incluirArquivados: true, sugestaoOculta: false };
+    let state = { view: 'home', categoriaId: null, produtoId: null, tab: 'produtos', produtoFiltro: 'todos', selecao: false, selecionados: new Set(), incluirArquivados: true, sugestaoOculta: false };
     let navHistory = [];
 
     function pushHistory(view, categoriaId, produtoId, tab) {
-      const stateObj = { view, categoriaId, produtoId, tab };
+      const stateObj = { view, categoriaId, produtoId, tab, produtoFiltro: state.produtoFiltro || 'todos' };
       navHistory.push(stateObj);
       history.pushState(stateObj, '', '');
     }
@@ -359,8 +358,13 @@
       if (e.state && e.state.view) {
         navHistory.pop();
         const prev = navHistory[navHistory.length - 1];
-        if (prev) { state = { selecao: false, selecionados: new Set(), incluirArquivados: state.incluirArquivados !== false, sugestaoOculta: state.sugestaoOculta, ...prev }; refreshCurrentView(); }
-        else { state = { view: 'home', categoriaId: null, produtoId: null, tab: 'produtos' }; renderHome(); }
+        if (prev) { 
+          state = { selecao: false, selecionados: new Set(), incluirArquivados: state.incluirArquivados !== false, sugestaoOculta: state.sugestaoOculta, produtoFiltro: 'todos', ...prev }; 
+          refreshCurrentView(); 
+        } else { 
+          state = { view: 'home', categoriaId: null, produtoId: null, tab: 'produtos', produtoFiltro: 'todos', selecao: false, selecionados: new Set(), incluirArquivados: true, sugestaoOculta: false }; 
+          renderHome(); 
+        }
       }
     });
 
@@ -786,13 +790,14 @@
       const orcamentos = await dbGetAll('orcamentos');
       const info = CATEGORIA_ICONS[categoria.tipo] || CATEGORIA_ICONS.outros;
       const tab = state.tab || 'produtos';
+      const filtroAtivo = state.produtoFiltro || 'todos';
 
       let html = `
         <div class="cat-header">
           <div class="cat-header-top">
             <button class="hero-btn" onclick="navigate('home')">${ICONS.back}</button>
             <div class="hero-actions">
-              <button class="hero-btn" onclick="${(state.produtoFiltro || 'todos')==='arquivado' ? 'desarquivarTodosCategoria(' + categoria.id + ')' : 'arquivarTodosCategoria(' + categoria.id + ')'}" title="${(state.produtoFiltro || 'todos')==='arquivado' ? 'Desarquivar todos os produtos' : 'Arquivar produtos do filtro atual'}">${(state.produtoFiltro || 'todos')==='arquivado' ? '📤' : '📁'}</button>
+              <button class="hero-btn" id="btnHeaderAcao" onclick="${filtroAtivo==='arquivado' ? 'desarquivarTodosCategoria(' + categoria.id + ')' : 'arquivarTodosCategoria(' + categoria.id + ')'}" title="${filtroAtivo==='arquivado' ? 'Desarquivar todos os produtos' : 'Arquivar produtos do filtro atual'}">${filtroAtivo==='arquivado' ? '📤' : '📁'}</button>
               <button class="hero-btn" onclick="openModal('modalEditCategoria')">${ICONS.edit}</button>
               <button class="hero-btn" onclick="excluirCategoria(${categoria.id})">${ICONS.trash}</button>
             </div>
@@ -811,7 +816,6 @@
       `;
 
       if (tab === 'produtos') {
-        // Calcular contadores para os chips (arquivados ficam separados)
         const ativos = produtos.filter(p => !p.arquivado);
         const countPendente = ativos.filter(p => orcamentos.filter(o => o.produtoId === p.id).length === 0).length;
         const countOrcado = ativos.filter(p => {
@@ -820,7 +824,6 @@
         }).length;
         const countComprado = ativos.filter(p => orcamentos.filter(o => o.produtoId === p.id).some(o => o.comprado)).length;
         const countArquivado = produtos.filter(p => p.arquivado).length;
-        const filtroAtivo = state.produtoFiltro || 'todos';
 
         html += `<div style="display:flex;align-items:center;padding:12px 16px 4px;"><div class="chips-wrap" style="padding:0;flex:1;">`;
         html += `<div class="chip ${filtroAtivo==='todos'?'active':''}" data-filter="todos" onclick="filtrarProdutos('todos')">Todos (${ativos.length})</div>`;
@@ -837,7 +840,6 @@
         if (produtos.length === 0) {
           html += `<div class="empty"><div class="empty-icon">📦</div><div class="empty-title">Nenhum produto</div><div class="empty-text">Adicione o primeiro produto para começar</div></div>`;
         } else {
-          // Ordenar: Pendente → Orçado → Comprado
           const produtosOrdenados = [...produtos].sort((a, b) => {
             const oa = orcamentos.filter(o => o.produtoId === a.id);
             const ob = orcamentos.filter(o => o.produtoId === b.id);
@@ -882,10 +884,13 @@
               badgeStatus = '<span style="font-size:10px;font-weight:800;color:var(--text-muted);background:var(--surface-raised);padding:2px 8px;border-radius:var(--radius-pill);margin-left:6px;vertical-align:middle;border:1px solid var(--border);">📋 Pendente</span>';
               statusText = '<span style="color:var(--text-muted)">📋 Sem orçamento</span>';
             }
+
+            // CORREÇÃO: Respeita exatamente o filtro atual quando re-renderiza para selecao
+            const showCard = filtroAtivo === 'todos' ? statusProd !== 'arquivado' : statusProd === filtroAtivo;
             const isSelected = state.selecao && state.selecionados && state.selecionados.has(prod.id);
-            const hideCard = statusProd === 'arquivado' && filtroAtivo !== 'arquivado';
+
             html += `
-              <div class="prod-card ${isSelected ? 'selected' : ''}" data-status="${statusProd}" data-pid="${prod.id}" style="display:${hideCard ? 'none' : ''}" onclick="onProdCardClick(${categoria.id}, ${prod.id})">
+              <div class="prod-card ${isSelected ? 'selected' : ''}" data-status="${statusProd}" data-pid="${prod.id}" style="display:${showCard ? '' : 'none'}" onclick="onProdCardClick(${categoria.id}, ${prod.id})">
                 <div class="prod-card-header" style="gap:0;">
                   ${state.selecao ? '<div class="select-check" style="margin-right:10px;">✓</div>' : ''}
                   <div style="flex:1;min-width:0">
@@ -905,11 +910,11 @@
         }
         html += `</div>`;
         if (state.selecao) {
-          const isArchView = (state.produtoFiltro || 'todos') === 'arquivado';
+          const isArchView = filtroAtivo === 'arquivado';
           html += `
           <div class="select-bar active">
             <span class="select-bar-count" id="selectCount">${(state.selecionados || new Set()).size} selecionado(s)</span>
-            <button class="btn btn-primary" onclick="${isArchView ? 'desarquivarSelecionados()' : 'arquivarSelecionados()'}">${isArchView ? '📤 Desarquivar' : '📁 Arquivar'}</button>
+            <button class="btn btn-primary" id="btnSelectAcao" onclick="${isArchView ? 'desarquivarSelecionados()' : 'arquivarSelecionados()'}">${isArchView ? '📤 Desarquivar' : '📁 Arquivar'}</button>
             <button class="btn" onclick="sairSelecao()">Cancelar</button>
           </div>`;
         }
@@ -1002,769 +1007,49 @@
       document.getElementById('app').innerHTML = html;
     }
 
-    async function renderProduto(categoriaId, produtoId) {
-      const categoria = (await dbGetAll('categorias')).find(c => c.id === categoriaId);
-      const produto = (await dbGetAll('produtos')).find(p => p.id === produtoId);
-      if (!categoria || !produto) { navigate('home'); return; }
-      const orcamentos = await dbGetByIndex('orcamentos', 'produtoId', produtoId);
-      const fornecedores = await dbGetByIndex('fornecedores', 'categoriaId', categoriaId);
-      const sorted = [...orcamentos].sort((a, b) => {
-        if (a.indisponivel && !b.indisponivel) return 1;
-        if (!a.indisponivel && b.indisponivel) return -1;
-        if (a.indisponivel && b.indisponivel) return 0;
-        return a.preco - b.preco;
+    function filtrarProdutos(filtro) {
+      state.produtoFiltro = filtro;
+      document.querySelectorAll('.chip[data-filter]').forEach(c => {
+        c.classList.toggle('active', c.dataset.filter === filtro);
       });
-      const info = CATEGORIA_ICONS[categoria.tipo] || CATEGORIA_ICONS.outros;
-      const hoje = getHoje();
-
-      const fornsOrdenados = [...fornecedores].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
-      let fornOptions = '<option value="">-- Selecione uma loja --</option>';
-      for (const f of fornsOrdenados) fornOptions += `<option value="${f.nome}">${f.nome}</option>`;
-      fornOptions += '<option value="__outro__">✏️ Outro (digitar manualmente)</option>';
-
-      let html = `
-        <div class="prod-header">
-          <div class="cat-header-top">
-            <button class="hero-btn" onclick="navigate('categoria', ${categoriaId})">${ICONS.back}</button>
-            <div class="hero-actions">
-              <button class="hero-btn" onclick="toggleArquivarProduto(${produto.id}, ${categoriaId}, true)" title="${produto.arquivado ? 'Desarquivar produto' : 'Arquivar produto'}">${produto.arquivado ? '📤' : '📁'}</button>
-              <button class="hero-btn" onclick="compartilharOrcamentos(${produto.id}, ${categoriaId})" title="Compartilhar">📤</button>
-              <button class="hero-btn" onclick="openModal('modalEditProduto')">${ICONS.edit}</button>
-              <button class="hero-btn" onclick="excluirProduto(${produto.id}, ${categoriaId})">${ICONS.trash}</button>
-            </div>
-          </div>
-          <div class="cat-header-title" style="font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px">${produto.nome}</div>
-          <div class="cat-header-sub">${produto.descricao || ''}${produto.produtoPara ? ' · 👤 ' + produto.produtoPara : ''}</div>
-        </div>
-        <div class="breadcrumb">
-          <a onclick="navigate('home')">Início</a><span class="breadcrumb-sep">›</span>
-          <a onclick="navigate('categoria', ${categoriaId})">${categoria.nome}</a><span class="breadcrumb-sep">›</span><span>${produto.nome}</span>
-        </div>
-        <div class="content">
-      `;
-
-      if (produto.arquivado) {
-        html += `
-          <div style="margin:12px 16px 0;padding:12px 14px;background:var(--warning-soft);border:1.5px solid var(--warning);border-radius:var(--radius-md);display:flex;align-items:center;gap:10px;font-size:13px;">
-            <span>📁 Este produto está <strong>arquivado</strong>.</span>
-            <button class="btn" style="width:auto;padding:8px 12px;font-size:12px;margin-left:auto;flex-shrink:0;" onclick="toggleArquivarProduto(${produto.id}, ${categoriaId}, true)">Desarquivar</button>
-          </div>`;
-      }
-
-      if (sorted.length > 0) {
-        const disp = sorted.filter(o => !o.indisponivel);
-        const menor = disp.length > 0 ? disp[0].preco : null;
-        const maior = disp.length > 0 ? disp[disp.length - 1].preco : null;
-        const economia = (menor !== null && maior !== null) ? maior - menor : 0;
-        html += `
-          <div class="stats-row">
-            <div class="stat-box">
-              <div class="stat-value">${menor !== null ? formatMoney(menor) : '—'}</div>
-              <div class="stat-label">💚 Menor</div>
-            </div>
-            <div class="stat-box">
-              <div class="stat-value">${maior !== null ? formatMoney(maior) : '—'}</div>
-              <div class="stat-label">❤️ Maior</div>
-            </div>
-            <div class="stat-box">
-              <div class="stat-value">${economia > 0 ? formatMoney(economia) : '—'}</div>
-              <div class="stat-label">💰 Economia</div>
-            </div>
-          </div>`;
-      }
-
-      html += `<div class="section-title">Orçamentos (${sorted.length})</div>`;
-
-      if (sorted.length === 0) {
-        html += `<div class="empty"><div class="empty-icon">🏷️</div><div class="empty-title">Nenhum orçamento</div><div class="empty-text">Adicione orçamentos de diferentes fornecedores</div></div>`;
-      } else {
-        let dispIdx = 0;
-        sorted.forEach((o, i) => {
-          const isDisp = !o.indisponivel;
-          const rank = isDisp ? (dispIdx === 0 ? 'gold' : dispIdx === 1 ? 'silver' : dispIdx === 2 ? 'bronze' : '') : '';
-          const isBest = isDisp && dispIdx === 0;
-          if (isDisp) dispIdx++;
-          const compradoClass = o.comprado ? 'comprado' : '';
-          const indisponivelClass = o.indisponivel ? 'indisponivel' : '';
-          const rankText = o.indisponivel ? '❌' : (dispIdx === 1 ? '🥇' : dispIdx === 2 ? '🥈' : dispIdx === 3 ? '🥉' : dispIdx+'º');
-          html += `
-            <div class="orc-item ${isBest ? 'best' : ''} ${compradoClass} ${indisponivelClass}">
-              <div class="orc-rank ${rank}">${rankText}</div>
-              <div class="orc-info">
-                <div class="orc-forn">${o.fornecedor}${o.comprado ? '<span class="selo-comprado">✅ Comprado</span>' : ''}</div>
-                <div class="orc-detalhes">${o.indisponivel ? 'Produto indisponível nesta loja' : (o.quantidade > 1 ? o.quantidade + ' ' + produto.unidade + 's · ' : '') + formatDate(o.data) + (o.observacao ? ' · ' + o.observacao : '')}</div>
-              </div>
-              <div class="orc-preco ${isBest ? 'best' : ''}">${formatOrcPreco(o)}</div>
-              <div class="orc-actions">
-                ${!o.indisponivel ? `<button class="icon-btn" onclick="marcarComprado(${o.id}, ${categoriaId}, ${produtoId})" title="Marcar como comprado">${ICONS.check}</button>` : ''}
-                <button class="icon-btn" onclick="editarOrcamento(${o.id}, ${categoriaId}, ${produtoId})" title="Editar">${ICONS.edit}</button>
-                <button class="icon-btn" onclick="excluirOrcamento(${o.id}, ${categoriaId}, ${produtoId})" title="Excluir">${ICONS.trash}</button>
-              </div>
-            </div>`;
-        });
-      }
-
-      // Lojas que faltam orçar
-      const fornsComOrc = new Set(orcamentos.map(o => o.fornecedor));
-      const faltantes = fornsOrdenados.filter(f => !fornsComOrc.has(f.nome));
-      if (faltantes.length > 0) {
-        html += `<div class="section-title" style="margin-top:8px;">🏪 Faltam orçar (${faltantes.length})</div>`;
-        for (const f of faltantes) {
-          html += `
-            <div class="forn-faltante" onclick="abrirOrcamentoComFornecedor('${f.nome.replace(/'/g, "\'")}')" style="cursor:pointer;">
-              <div class="forn-icon">🏪</div>
-              <div class="forn-nome">${f.nome}</div>
-              <div style="margin-left:auto;font-size:11px;color:var(--primary-600);font-weight:700;">+ Orçar →</div>
-            </div>`;
+      const cards = document.querySelectorAll('.prod-card');
+      cards.forEach(card => {
+        const s = card.dataset.status;
+        if (filtro === 'todos') {
+          card.style.display = s !== 'arquivado' ? '' : 'none';
+        } else {
+          card.style.display = s === filtro ? '' : 'none';
         }
-      }
-
-      html += `</div></div>`;
-      html += renderBottomNav('home');
-
-      html += `
-        <div class="modal-overlay" id="modalOrcamento">
-          <div class="modal">
-            <div class="modal-header"><div class="modal-title">Novo Orçamento</div><button class="icon-btn" onclick="closeModal('modalOrcamento')">${ICONS.close}</button></div>
-            <div class="modal-body">
-              <div class="form-group"><label class="form-label">Fornecedor / Loja</label>
-                <select class="form-select" id="orcFornecedorSelect" onchange="toggleFornecedorManual()">${fornOptions}</select>
-              </div>
-              <div class="form-group" id="orcFornManualGroup" style="display:none;">
-                <label class="form-label">Digite o nome do fornecedor</label>
-                <input class="form-input" id="orcFornecedorManual" placeholder="Ex: Drogaria Nova">
-              </div>
-              <div class="form-group form-check">
-                <input type="checkbox" id="orcIndisponivel" onchange="toggleIndisponivel()">
-                <label for="orcIndisponivel">Loja não tem o produto</label>
-              </div>
-              <div class="form-group" id="orcPrecoGroup">
-                <label class="form-label">Preço (R$)</label>
-                <input class="form-input" id="orcPreco" type="number" step="0.01" placeholder="0,00" inputmode="decimal">
-              </div>
-              <div class="form-group"><label class="form-label">Quantidade</label><input class="form-input" id="orcQtd" type="number" value="1" min="1"></div>
-              <div class="form-group"><label class="form-label">Data do orçamento</label><input class="form-input" id="orcData" type="date" value="${hoje}"></div>
-              <div class="form-group"><label class="form-label">Observação (opcional)</label><input class="form-input" id="orcObs" placeholder="Ex: Promoção válida até..."></div>
-              <button class="btn btn-primary" onclick="salvarOrcamento(${produtoId}, ${categoriaId})">Salvar Orçamento</button>
-            </div>
-          </div>
-        </div>`;
-
-      html += `
-        <div class="modal-overlay" id="modalEditProduto">
-          <div class="modal">
-            <div class="modal-header"><div class="modal-title">Editar Produto</div><button class="icon-btn" onclick="closeModal('modalEditProduto')">${ICONS.close}</button></div>
-            <div class="modal-body">
-              <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="editProdNome" value="${produto.nome}"></div>
-              <div class="form-group"><label class="form-label">Descrição</label><input class="form-input" id="editProdDesc" value="${produto.descricao || ''}"></div>
-              <div class="form-group"><label class="form-label">Produto Para</label><input class="form-input" id="editProdPara" value="${produto.produtoPara || ''}"></div>
-              <div class="form-group"><label class="form-label">Unidade</label>
-                <select class="form-select" id="editProdUnidade" onchange="toggleEditUnidadeManual()">
-                  <option value="unidade" ${produto.unidade==='UNIDADE'?'selected':''}>Unidade</option>
-                  <option value="caixa" ${produto.unidade==='CAIXA'?'selected':''}>Caixa</option>
-                  <option value="saco" ${produto.unidade==='SACO'?'selected':''}>Saco</option>
-                  <option value="kg" ${produto.unidade==='KG'?'selected':''}>Quilograma</option>
-                  <option value="litro" ${produto.unidade==='LITRO'?'selected':''}>Litro</option>
-                  <option value="metro" ${produto.unidade==='METRO'?'selected':''}>Metro</option>
-                  <option value="pacote" ${produto.unidade==='PACOTE'?'selected':''}>Pacote</option>
-                  <option value="kit" ${produto.unidade==='KIT'?'selected':''}>Kit</option>
-                  <option value="__outro__">✏️ Outro</option>
-                </select>
-              </div>
-              <div class="form-group" id="editProdUnidadeManualGroup" style="display:none;">
-                <label class="form-label">Digite a unidade</label>
-                <input class="form-input" id="editProdUnidadeManual" placeholder="Ex: PAR, ROLO, LATA">
-              </div>
-              <button class="btn btn-primary" onclick="atualizarProduto(${produto.id}, ${categoriaId})">Salvar Alterações</button>
-            </div>
-          </div>
-        </div>
-        <div class="modal-overlay" id="modalEditOrcamento">
-          <div class="modal">
-            <div class="modal-header"><div class="modal-title">Editar Orçamento</div><button class="icon-btn" onclick="closeModal('modalEditOrcamento')">${ICONS.close}</button></div>
-            <div class="modal-body">
-              <div class="form-group form-check">
-                <input type="checkbox" id="editOrcIndisponivel" onchange="toggleEditIndisponivel()">
-                <label for="editOrcIndisponivel">Loja não tem o produto</label>
-              </div>
-              <div class="form-group" id="editOrcPrecoGroup">
-                <label class="form-label">Preço (R$)</label>
-                <input class="form-input" id="editOrcPreco" type="number" step="0.01" placeholder="0,00" inputmode="decimal">
-              </div>
-              <div class="form-group"><label class="form-label">Quantidade</label><input class="form-input" id="editOrcQtd" type="number" value="1" min="1"></div>
-              <div class="form-group"><label class="form-label">Data do orçamento</label><input class="form-input" id="editOrcData" type="date"></div>
-              <div class="form-group"><label class="form-label">Observação (opcional)</label><input class="form-input" id="editOrcObs" placeholder="Ex: Promoção válida até..."></div>
-              <button class="btn btn-primary" onclick="atualizarOrcamento(${categoriaId}, ${produtoId})">Salvar Alterações</button>
-            </div>
-          </div>
-        </div>`;
-
-      document.getElementById('app').innerHTML = html;
-    }
-
-    function toggleUnidadeManual() {
-      const sel = document.getElementById('prodUnidade');
-      const grp = document.getElementById('prodUnidadeManualGroup');
-      if (grp) grp.style.display = sel.value === '__outro__' ? 'block' : 'none';
-    }
-    function toggleFornecedorManual() {
-      const sel = document.getElementById('orcFornecedorSelect');
-      const grp = document.getElementById('orcFornManualGroup');
-      grp.style.display = sel.value === '__outro__' ? 'block' : 'none';
-    }
-    function toggleIndisponivel() {
-      const chk = document.getElementById('orcIndisponivel');
-      const grp = document.getElementById('orcPrecoGroup');
-      if (grp) grp.style.display = chk.checked ? 'none' : 'block';
-    }
-    function toggleEditIndisponivel() {
-      const chk = document.getElementById('editOrcIndisponivel');
-      const grp = document.getElementById('editOrcPrecoGroup');
-      if (grp) grp.style.display = chk.checked ? 'none' : 'block';
-    }
-
-    async function renderRelatorios() {
-      const categorias = await dbGetAll('categorias');
-      const produtos = await dbGetAll('produtos');
-      const orcamentos = await dbGetAll('orcamentos');
-      const themeIcon = getTheme() === 'dark' ? ICONS.sun : ICONS.moon;
-
-      const prodData = produtos.filter(p => !p.arquivado).map(p => {
-        const count = orcamentos.filter(o => o.produtoId === p.id).length;
-        return { nome: p.nome, count };
-      }).filter(p => p.count > 0).sort((a,b) => b.count - a.count).slice(0, 5);
-
-      const maxCount = prodData.length > 0 ? prodData[0].count : 1;
-
-      let html = `
-        <div class="hero-compact">
-          <div class="hero-top">
-            <span class="hero-date">${getDataExtenso()}</span>
-            <div class="hero-actions">
-              <button class="hero-btn" onclick="toggleTheme()">${themeIcon}</button>
-            </div>
-          </div>
-          <div class="hero-title">Relatórios</div>
-          <div class="hero-sub">Análise e estatísticas dos seus orçamentos</div>
-        </div>
-        <div class="content">
-      `;
-
-      let totalGasto = 0, totalEconomia = 0, totalOrcs = orcamentos.length;
-      for (const p of produtos) {
-        if (p.arquivado) continue;
-        const pos = orcamentos.filter(o => o.produtoId === p.id);
-        const comprado = pos.find(o => o.comprado && !o.indisponivel);
-        if (comprado) {
-          totalGasto += comprado.preco;
-          const precosDisp = pos.filter(o => !o.indisponivel).map(o => o.preco);
-          if (precosDisp.length > 0) {
-            totalEconomia += Math.max(...precosDisp) - comprado.preco;
-          }
-        }
-      }
-
-      html += `
-        <div class="stats-row">
-          <div class="stat-box">
-            <div class="stat-value">${totalOrcs}</div>
-            <div class="stat-label">Orçamentos</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-value">${totalGasto > 0 ? formatMoney(totalGasto) : '—'}</div>
-            <div class="stat-label">Melhor total</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-value">${totalEconomia > 0 ? formatMoney(totalEconomia) : '—'}</div>
-            <div class="stat-label">Economizado</div>
-          </div>
-        </div>
-      `;
-
-      if (prodData.length > 0) {
-        html += `<div class="report-card"><div class="report-title">📊 Produtos mais orçados</div>`;
-        const colors = ['var(--primary-500)', 'var(--primary-400)', 'var(--primary-300)', 'var(--primary-200)', 'var(--primary-100)'];
-        for (let i = 0; i < prodData.length; i++) {
-          const pct = (prodData[i].count / maxCount * 100).toFixed(0);
-          html += `
-            <div class="chart-bar">
-              <div class="chart-label">${prodData[i].nome}</div>
-              <div class="chart-track">
-                <div class="chart-fill" style="width:${pct}%;background:${colors[i] || colors[colors.length-1]}"></div>
-              </div>
-              <div class="chart-value">${prodData[i].count}</div>
-            </div>`;
-        }
-        html += `</div>`;
-      }
-
-      const semOrc = produtos.filter(p => !p.arquivado && !orcamentos.some(o => o.produtoId === p.id));
-      if (semOrc.length > 0) {
-        html += `<div class="report-card"><div class="report-title">⚠️ Produtos sem orçamento (${semOrc.length})</div>`;
-        for (const p of semOrc) {
-          const cat = categorias.find(c => c.id === p.categoriaId);
-          html += `<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;"><strong>${p.nome}</strong> <span style="color:var(--text-muted)">${cat ? '— ' + cat.nome : ''}</span></div>`;
-        }
-        html += `</div>`;
-      }
-
-      html += `</div>`;
-      html += renderBottomNav('reports');
-      document.getElementById('app').innerHTML = html;
-    }
-
-    function getAppVersion() {
-      return document.querySelector('meta[name="app-version"]')?.content || '2.1.0';
-    }
-
-    async function renderConfiguracoes() {
-      const themeIcon = getTheme() === 'dark' ? ICONS.sun : ICONS.moon;
-      const themeLabel = getTheme() === 'dark' ? 'Modo Escuro' : 'Modo Claro';
-
-      let html = `
-        <div class="hero">
-          <div class="hero-top">
-            <span class="hero-date">${getDataExtenso()}</span>
-          </div>
-          <div class="hero-title">Ajustes</div>
-          <div class="hero-sub">Configurações do aplicativo</div>
-        </div>
-        <div class="content">
-          <div class="settings-list">
-            <div class="settings-item" onclick="toggleTheme(); renderConfiguracoes();">
-              <div class="settings-icon">${themeIcon}</div>
-              <div class="settings-info">
-                <div class="settings-name">Tema</div>
-                <div class="settings-desc">${themeLabel}</div>
-              </div>
-              <div class="settings-arrow">${ICONS.arrowRight}</div>
-            </div>
-            <div class="settings-item" onclick="checkForUpdate()">
-              <div class="settings-icon">${ICONS.bell}</div>
-              <div class="settings-info">
-                <div class="settings-name">Verificar Atualizações</div>
-                <div class="settings-desc">Buscar nova versão do app</div>
-              </div>
-              <div class="settings-arrow">${ICONS.arrowRight}</div>
-            </div>
-            <div class="settings-item" onclick="exportData()">
-              <div class="settings-icon">${ICONS.download}</div>
-              <div class="settings-info">
-                <div class="settings-name">Exportar Backup</div>
-                <div class="settings-desc">Salvar todos os dados em JSON</div>
-              </div>
-              <div class="settings-arrow">${ICONS.arrowRight}</div>
-            </div>
-            <div class="settings-item" onclick="document.getElementById('importFile').click()">
-              <div class="settings-icon">${ICONS.upload}</div>
-              <div class="settings-info">
-                <div class="settings-name">Importar Backup</div>
-                <div class="settings-desc">Restaurar dados de um arquivo JSON</div>
-              </div>
-              <div class="settings-arrow">${ICONS.arrowRight}</div>
-            </div>
-            <input type="file" id="importFile" style="display:none" accept=".json,application/json" onchange="importData(this)">
-            <div class="settings-item" onclick="if(confirm('Limpar TODOS os dados? Esta ação não pode ser desfeita.')) { limparDados(); }">
-              <div class="settings-icon" style="color:var(--danger)">${ICONS.trash}</div>
-              <div class="settings-info">
-                <div class="settings-name" style="color:var(--danger)">Limpar Todos os Dados</div>
-                <div class="settings-desc">Apagar categorias, produtos e orçamentos</div>
-              </div>
-              <div class="settings-arrow" style="color:var(--danger)">${ICONS.arrowRight}</div>
-            </div>
-          </div>
-
-          <div style="text-align:center;padding:30px 16px;color:var(--text-muted);font-size:12px;">
-            <div style="margin-bottom:6px;">OrçaFácil v${getAppVersion()}</div>
-            <div>100% offline · PWA</div>
-          </div>
-        </div>
-      `;
-      html += renderBottomNav('settings');
-      document.getElementById('app').innerHTML = html;
-    }
-
-    function renderBottomNav(active) {
-      const homeActive = active === 'home' ? 'active' : '';
-      const reportsActive = active === 'reports' ? 'active' : '';
-      const settingsActive = active === 'settings' ? 'active' : '';
-      return `
-        <div class="bottom-nav">
-          <button class="nav-item ${homeActive}" onclick="navigate('home')">
-            ${ICONS.home}
-            Início
-          </button>
-          <button class="nav-item ${reportsActive}" onclick="navigate('reports')">
-            ${ICONS.chart}
-            Relatórios
-          </button>
-          <button class="nav-fab" onclick="handleFab()">
-            ${ICONS.plus}
-          </button>
-          <button class="nav-item ${settingsActive}" onclick="navigate('settings')">
-            ${ICONS.settings}
-            Ajustes
-          </button>
-        </div>
-      `;
-    }
-
-    function handleFab() {
-      if (state.view === 'home') openModal('modalCategoria');
-      else if (state.view === 'categoria') {
-        if (state.tab === 'produtos') openModal('modalProduto');
-        else openModal('modalFornecedor');
-      }
-      else if (state.view === 'produto') openModal('modalOrcamento');
-      else if (state.view === 'reports') { toast('Use a tela de produtos para adicionar orçamentos', 'info'); }
-      else if (state.view === 'settings') { toast('Use a tela inicial para adicionar categorias', 'info'); }
-    }
-
-    async function salvarCategoria() {
-      const nome = document.getElementById('catNome').value.trim().toUpperCase();
-      const tipo = document.getElementById('catTipo').value;
-      const desc = document.getElementById('catDesc').value.trim().toUpperCase();
-      if (!nome) { toast('Digite o nome da categoria', 'danger'); return; }
-      await dbAdd('categorias', { nome, tipo, descricao: desc, criadoEm: Date.now() });
-      closeModal('modalCategoria');
-      toast('Categoria criada!', 'success');
-      navigate('home');
-    }
-    async function atualizarCategoria(id) {
-      const nome = document.getElementById('editCatNome').value.trim().toUpperCase();
-      const desc = document.getElementById('editCatDesc').value.trim().toUpperCase();
-      if (!nome) { toast('Digite o nome', 'danger'); return; }
-      const cat = (await dbGetAll('categorias')).find(c => c.id === id);
-      cat.nome = nome; cat.descricao = desc;
-      await dbPut('categorias', cat);
-      closeModal('modalEditCategoria'); toast('Categoria atualizada!', 'success');
-      renderCategoria(id);
-    }
-    async function excluirCategoria(id) {
-      if (!confirm('Excluir esta categoria e TODOS os produtos, fornecedores e orçamentos?')) return;
-      const produtos = await dbGetByIndex('produtos', 'categoriaId', id);
-      for (const p of produtos) {
-        const orcs = await dbGetByIndex('orcamentos', 'produtoId', p.id);
-        for (const o of orcs) await dbDelete('orcamentos', o.id);
-        await dbDelete('produtos', p.id);
-      }
-      const forns = await dbGetByIndex('fornecedores', 'categoriaId', id);
-      for (const f of forns) await dbDelete('fornecedores', f.id);
-      await dbDelete('categorias', id);
-      toast('Categoria excluída', 'success'); navigate('home');
-    }
-
-    async function salvarProduto(categoriaId) {
-      const nome = document.getElementById('prodNome').value.trim().toUpperCase();
-      const desc = document.getElementById('prodDesc').value.trim().toUpperCase();
-      const sel = document.getElementById('prodUnidade');
-      let unidade = sel.value === '__outro__' ? document.getElementById('prodUnidadeManual').value.trim().toUpperCase() : sel.value.toUpperCase();
-      if (!nome) { toast('Digite o nome do produto', 'danger'); return; }
-      if (!unidade) { toast('Digite a unidade', 'danger'); return; }
-      const produtoPara = document.getElementById('prodPara').value.trim().toUpperCase();
-      await dbAdd('produtos', { categoriaId, nome, descricao: desc, unidade, produtoPara, criadoEm: Date.now() });
-      closeModal('modalProduto'); toast('Produto adicionado!', 'success');
-      document.getElementById('prodNome').value = '';
-      document.getElementById('prodDesc').value = '';
-      document.getElementById('prodPara').value = '';
-      document.getElementById('prodUnidade').value = 'unidade';
-      document.getElementById('prodUnidadeManual').value = '';
-      document.getElementById('prodUnidadeManualGroup').style.display = 'none';
-      renderCategoria(categoriaId);
-    }
-    function toggleEditUnidadeManual() {
-      const sel = document.getElementById('editProdUnidade');
-      const grp = document.getElementById('editProdUnidadeManualGroup');
-      if (grp) grp.style.display = sel.value === '__outro__' ? 'block' : 'none';
-    }
-
-    async function atualizarProduto(id, categoriaId) {
-      const nome = document.getElementById('editProdNome').value.trim().toUpperCase();
-      const desc = document.getElementById('editProdDesc').value.trim().toUpperCase();
-      const produtoPara = document.getElementById('editProdPara').value.trim().toUpperCase();
-      const sel = document.getElementById('editProdUnidade');
-      let unidade = sel.value === '__outro__' ? document.getElementById('editProdUnidadeManual').value.trim().toUpperCase() : sel.value.toUpperCase();
-      if (!nome) { toast('Digite o nome', 'danger'); return; }
-      if (!unidade) { toast('Digite a unidade', 'danger'); return; }
-      const prod = (await dbGetAll('produtos')).find(p => p.id === id);
-      prod.nome = nome; prod.descricao = desc; prod.produtoPara = produtoPara; prod.unidade = unidade;
-      await dbPut('produtos', prod);
-      closeModal('modalEditProduto'); toast('Produto atualizado!', 'success');
-      renderProduto(categoriaId, id);
-    }
-    async function excluirProduto(id, categoriaId) {
-      if (!confirm('Excluir este produto e todos os seus orçamentos?')) return;
-      const orcs = await dbGetByIndex('orcamentos', 'produtoId', id);
-      for (const o of orcs) await dbDelete('orcamentos', o.id);
-      await dbDelete('produtos', id);
-      toast('Produto excluído', 'success'); renderCategoria(categoriaId);
-    }
-
-    async function salvarFornecedor(categoriaId) {
-      const nome = document.getElementById('fornNome').value.trim().toUpperCase();
-      const telefone = document.getElementById('fornTel').value.trim();
-      const endereco = document.getElementById('fornEnd').value.trim().toUpperCase();
-      if (!nome) { toast('Digite o nome do fornecedor', 'danger'); return; }
-      await dbAdd('fornecedores', { categoriaId, nome, telefone, endereco, criadoEm: Date.now() });
-      closeModal('modalFornecedor'); toast('Fornecedor cadastrado!', 'success');
-      document.getElementById('fornNome').value = '';
-      document.getElementById('fornTel').value = '';
-      document.getElementById('fornEnd').value = '';
-      renderCategoria(categoriaId);
-    }
-    let editingFornId = null;
-    async function editarFornecedor(id, categoriaId) {
-      const f = (await dbGetAll('fornecedores')).find(x => x.id === id);
-      editingFornId = id;
-      document.getElementById('editFornNome').value = f.nome;
-      document.getElementById('editFornTel').value = f.telefone || '';
-      document.getElementById('editFornEnd').value = f.endereco || '';
-      openModal('modalEditFornecedor');
-    }
-    async function atualizarFornecedor(categoriaId) {
-      const nome = document.getElementById('editFornNome').value.trim().toUpperCase();
-      const telefone = document.getElementById('editFornTel').value.trim();
-      const endereco = document.getElementById('editFornEnd').value.trim().toUpperCase();
-      if (!nome) { toast('Digite o nome do fornecedor', 'danger'); return; }
-      const f = (await dbGetAll('fornecedores')).find(x => x.id === editingFornId);
-      f.nome = nome; f.telefone = telefone; f.endereco = endereco;
-      await dbPut('fornecedores', f);
-      editingFornId = null;
-      closeModal('modalEditFornecedor');
-      toast('Fornecedor atualizado!', 'success');
-      renderCategoria(categoriaId);
-    }
-    async function excluirFornecedor(id, categoriaId) {
-      if (!confirm('Excluir este fornecedor?')) return;
-      await dbDelete('fornecedores', id);
-      toast('Fornecedor excluído', 'success'); renderCategoria(categoriaId);
-    }
-
-    async function salvarOrcamento(produtoId, categoriaId) {
-      const sel = document.getElementById('orcFornecedorSelect');
-      let fornecedor = sel.value === '__outro__' ? document.getElementById('orcFornecedorManual').value.trim().toUpperCase() : sel.value.toUpperCase();
-      const indisponivel = document.getElementById('orcIndisponivel').checked;
-      const precoRaw = document.getElementById('orcPreco').value.replace(',', '.');
-      const preco = indisponivel ? 0 : parseFloat(precoRaw);
-      const quantidade = parseInt(document.getElementById('orcQtd').value) || 1;
-      const data = document.getElementById('orcData').value;
-      const observacao = document.getElementById('orcObs').value.trim().toUpperCase();
-      if (!fornecedor) { toast('Selecione ou digite o fornecedor', 'danger'); return; }
-      if (!indisponivel && (isNaN(preco) || preco <= 0)) { toast('Digite um preço válido', 'danger'); return; }
-      await dbAdd('orcamentos', { produtoId, fornecedor, preco, quantidade, data, observacao, indisponivel, comprado: false, criadoEm: Date.now() });
-      closeModal('modalOrcamento'); toast('Orçamento salvo!', 'success');
-      renderProduto(categoriaId, produtoId);
-    }
-    let editingOrcId = null;
-    async function editarOrcamento(id, categoriaId, produtoId) {
-      const o = (await dbGetAll('orcamentos')).find(x => x.id === id);
-      editingOrcId = id;
-      document.getElementById('editOrcPreco').value = o.preco || '';
-      document.getElementById('editOrcQtd').value = o.quantidade;
-      document.getElementById('editOrcData').value = o.data;
-      document.getElementById('editOrcObs').value = o.observacao || '';
-      document.getElementById('editOrcIndisponivel').checked = !!o.indisponivel;
-      toggleEditIndisponivel();
-      openModal('modalEditOrcamento');
-    }
-    async function atualizarOrcamento(categoriaId, produtoId) {
-      const indisponivel = document.getElementById('editOrcIndisponivel').checked;
-      const precoRaw = document.getElementById('editOrcPreco').value.replace(',', '.');
-      const preco = indisponivel ? 0 : parseFloat(precoRaw);
-      const quantidade = parseInt(document.getElementById('editOrcQtd').value) || 1;
-      const data = document.getElementById('editOrcData').value;
-      const observacao = document.getElementById('editOrcObs').value.trim().toUpperCase();
-      if (!indisponivel && (isNaN(preco) || preco <= 0)) { toast('Preço inválido', 'danger'); return; }
-      const o = (await dbGetAll('orcamentos')).find(x => x.id === editingOrcId);
-      o.preco = preco; o.quantidade = quantidade; o.data = data; o.observacao = observacao; o.indisponivel = indisponivel;
-      await dbPut('orcamentos', o);
-      editingOrcId = null;
-      closeModal('modalEditOrcamento');
-      toast('Orçamento atualizado!', 'success');
-      renderProduto(categoriaId, produtoId);
-    }
-    async function excluirOrcamento(id, categoriaId, produtoId) {
-      if (!confirm('Excluir este orçamento?')) return;
-      await dbDelete('orcamentos', id);
-      toast('Orçamento excluído', 'success'); renderProduto(categoriaId, produtoId);
-    }
-    async function compartilharOrcamentos(produtoId, categoriaId) {
-      const produto = (await dbGetAll('produtos')).find(p => p.id === produtoId);
-      const categoria = (await dbGetAll('categorias')).find(c => c.id === categoriaId);
-      const orcamentos = await dbGetByIndex('orcamentos', 'produtoId', produtoId);
-      if (orcamentos.length === 0) { toast('Nenhum orçamento para compartilhar', 'warning'); return; }
-
-      const sorted = [...orcamentos].sort((a, b) => {
-        if (a.indisponivel && !b.indisponivel) return 1;
-        if (!a.indisponivel && b.indisponivel) return -1;
-        if (a.indisponivel && b.indisponivel) return 0;
-        return a.preco - b.preco;
       });
-
-      let dispIdx = 0;
-      let texto = `*🛒 ORÇAMENTO - ${produto.nome.toUpperCase()}*`;
-      if (produto.descricao) texto += `\n_${produto.descricao}_`;
-      if (produto.produtoPara) texto += `\n👤 Para: ${produto.produtoPara}`;
-      if (categoria) texto += `\n📁 Categoria: ${categoria.nome}`;
-      texto += `\n\n*📊 RANKING POR PREÇO:*\n`;
-
-      sorted.forEach((o, i) => {
-        const isDisp = !o.indisponivel;
-        let rank = '';
-        if (isDisp) {
-          dispIdx++;
-          if (dispIdx === 1) rank = '🥇 ';
-          else if (dispIdx === 2) rank = '🥈 ';
-          else if (dispIdx === 3) rank = '🥉 ';
-          else rank = `${dispIdx}º `;
-        }
-        const preco = o.indisponivel ? '❌ INDISPONÍVEL' : formatMoney(o.preco);
-        const comprado = o.comprado ? ' ✅ *COMPRADO*' : '';
-        const obs = o.observacao ? ` (${o.observacao})` : '';
-        texto += `\n${rank}*${o.fornecedor}*${comprado}\n💰 ${preco}${obs}`;
-      });
-
-      const disp = sorted.filter(o => !o.indisponivel);
-      if (disp.length > 0) {
-        const menor = disp[0].preco;
-        const maior = disp[disp.length - 1].preco;
-        const economia = maior - menor;
-        texto += `\n\n💚 *Menor preço:* ${formatMoney(menor)}`;
-        texto += `\n❤️ *Maior preço:* ${formatMoney(maior)}`;
-        if (economia > 0) texto += `\n💰 *Economia:* ${formatMoney(economia)}`;
-      }
-
-      texto += `\n\n📱 Via OrçaFácil`;
-
-      if (navigator.share) {
-        try {
-          await navigator.share({ title: `Orçamento ${produto.nome}`, text: texto });
-          toast('Compartilhado!', 'success');
-        } catch (e) {
-          // Usuário cancelou
-        }
-      } else {
-        try {
-          await navigator.clipboard.writeText(texto);
-          toast('Texto copiado! Cole no WhatsApp', 'success');
-        } catch (e) {
-          toast('Erro ao copiar texto', 'danger');
+      // CORREÇÃO DO ÍCONE E AÇÃO DO HEADER:
+      const btnHeader = document.getElementById('btnHeaderAcao');
+      if (btnHeader && state.categoriaId) {
+        if (filtro === 'arquivado') {
+          btnHeader.innerHTML = '📤';
+          btnHeader.title = 'Desarquivar todos os produtos';
+          btnHeader.setAttribute('onclick', `desarquivarTodosCategoria(${state.categoriaId})`);
+        } else {
+          btnHeader.innerHTML = '📁';
+          btnHeader.title = 'Arquivar produtos do filtro atual';
+          btnHeader.setAttribute('onclick', `arquivarTodosCategoria(${state.categoriaId})`);
         }
       }
-    }
-
-    async function marcarComprado(orcId, categoriaId, produtoId) {
-      const orcs = await dbGetByIndex('orcamentos', 'produtoId', produtoId);
-      const target = orcs.find(x => x.id === orcId);
-      const jaComprado = target && target.comprado;
-      // Desmarca todos do produto
-      for (const o of orcs) {
-        if (o.comprado) {
-          o.comprado = false;
-          await dbPut('orcamentos', o);
+      const btnAcao = document.getElementById('btnSelectAcao');
+      if (btnAcao) {
+        if (filtro === 'arquivado') {
+          btnAcao.textContent = '📤 Desarquivar';
+          btnAcao.setAttribute('onclick', 'desarquivarSelecionados()');
+        } else {
+          btnAcao.textContent = '📁 Arquivar';
+          btnAcao.setAttribute('onclick', 'arquivarSelecionados()');
         }
       }
-      // Se não estava comprado, marca. Se já estava, deixa desmarcado (toggle)
-      if (target && !jaComprado) {
-        target.comprado = true;
-        await dbPut('orcamentos', target);
-        toast('Marcado como comprado!', 'success');
-      } else {
-        toast('Desmarcado como comprado', 'info');
+      if (state.selecao) {
+        state.selecionados = new Set();
+        document.querySelectorAll('.prod-card.selected').forEach(c => c.classList.remove('selected'));
+        const count = document.getElementById('selectCount');
+        if (count) count.textContent = '0 selecionado(s)';
       }
-      renderProduto(categoriaId, produtoId);
-    }
-
-    async function exportData() {
-      const data = {
-        categorias: await dbGetAll('categorias'),
-        produtos: await dbGetAll('produtos'),
-        orcamentos: await dbGetAll('orcamentos'),
-        fornecedores: await dbGetAll('fornecedores'),
-        exportadoEm: new Date().toISOString()
-      };
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const fileName = `orcafacil-backup-${getHoje()}.json`;
-      if (navigator.share && navigator.canShare) {
-        try {
-          const file = new File([blob], fileName, { type: 'application/json' });
-          await navigator.share({ files: [file], title: 'OrçaFácil Backup' });
-          URL.revokeObjectURL(url); toast('Backup compartilhado!', 'success'); return;
-        } catch (e) {}
-      }
-      const a = document.createElement('a'); a.href = url; a.download = fileName;
-      a.style.display = 'none'; document.body.appendChild(a); a.click();
-      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
-      toast('Backup exportado!', 'success');
-    }
-
-    async function importData(input) {
-      const file = input.files[0];
-      if (!file) { toast('Nenhum arquivo selecionado', 'danger'); return; }
-      toast('Importando...', 'info');
-      try {
-        const text = await file.text();
-        const data = JSON.parse(text);
-        let count = 0;
-        if (data.categorias && Array.isArray(data.categorias)) { for (const c of data.categorias) { await dbPut('categorias', c); count++; } }
-        if (data.produtos && Array.isArray(data.produtos)) { for (const p of data.produtos) { await dbPut('produtos', p); count++; } }
-        if (data.fornecedores && Array.isArray(data.fornecedores)) { for (const f of data.fornecedores) { await dbPut('fornecedores', f); count++; } }
-        if (data.orcamentos && Array.isArray(data.orcamentos)) { for (const o of data.orcamentos) { await dbPut('orcamentos', o); count++; } }
-        toast(`Backup importado! ${count} itens restaurados`, 'success');
-        navigate('home');
-      } catch (e) { console.error(e); toast('Erro ao importar: arquivo inválido', 'danger'); }
-      input.value = '';
-    }
-
-    async function limparDados() {
-      const stores = ['orcamentos', 'fornecedores', 'produtos', 'categorias'];
-      for (const s of stores) {
-        const all = await dbGetAll(s);
-        for (const item of all) await dbDelete(s, item.id);
-      }
-      toast('Todos os dados foram apagados', 'success');
-      navigate('home');
-    }
-
-    async function toggleArquivarProduto(id, categoriaId, stay) {
-      const prod = (await dbGetAll('produtos')).find(p => p.id === id);
-      if (!prod) return;
-      prod.arquivado = !prod.arquivado;
-      await dbPut('produtos', prod);
-      toast(prod.arquivado ? 'Produto arquivado!' : 'Produto desarquivado!', 'success');
-      if (stay) renderProduto(categoriaId, id);
-      else renderCategoria(categoriaId);
-    }
-
-    async function arquivarTodosCategoria(categoriaId) {
-      const produtos = await dbGetByIndex('produtos', 'categoriaId', categoriaId);
-      const orcamentos = await dbGetAll('orcamentos');
-      const filtro = state.produtoFiltro || 'todos';
-      const ativos = produtos.filter(p => !p.arquivado);
-      const statusOf = p => {
-        const pos = orcamentos.filter(o => o.produtoId === p.id);
-        if (pos.some(o => o.comprado)) return 'comprado';
-        if (pos.length > 0) return 'orcado';
-        return 'pendente';
-      };
-      const alvos = filtro === 'todos' ? ativos : ativos.filter(p => statusOf(p) === filtro);
-      if (alvos.length === 0) { toast('Nenhum produto deste filtro para arquivar', 'info'); return; }
-      const label = { pendente: 'PENDENTES (para orçar)', orcado: 'ORÇADOS', comprado: 'COMPRADOS' }[filtro] || 'ativos';
-      if (!confirm(`Arquivar os ${alvos.length} produtos ${label} desta categoria?`)) return;
-      for (const p of alvos) { p.arquivado = true; await dbPut('produtos', p); }
-      toast(`${alvos.length} produtos arquivados!`, 'success');
-      renderCategoria(categoriaId);
-    }
-
-    async function desarquivarTodosCategoria(categoriaId) {
-      const produtos = await dbGetByIndex('produtos', 'categoriaId', categoriaId);
-      const arquivados = produtos.filter(p => p.arquivado);
-      if (arquivados.length === 0) return;
-      if (!confirm(`Desarquivar todos os ${arquivados.length} produtos desta categoria?`)) return;
-      for (const p of arquivados) { p.arquivado = false; await dbPut('produtos', p); }
-      toast(`${arquivados.length} produtos desarquivados!`, 'success');
-      renderCategoria(categoriaId);
     }
 
     function toggleSelecao() {
@@ -1777,60 +1062,87 @@
       state.selecionados = new Set();
       renderCategoria(state.categoriaId);
     }
-    function onProdCardClick(categoriaId, produtoId) {
+    function onProdCardClick(catId, prodId) {
       if (state.selecao) {
         if (!state.selecionados) state.selecionados = new Set();
-        if (state.selecionados.has(produtoId)) state.selecionados.delete(produtoId);
-        else state.selecionados.add(produtoId);
-        const card = document.querySelector(`.prod-card[data-pid="${produtoId}"]`);
-        if (card) card.classList.toggle('selected', state.selecionados.has(produtoId));
+        if (state.selecionados.has(prodId)) {
+          state.selecionados.delete(prodId);
+        } else {
+          state.selecionados.add(prodId);
+        }
+        const card = document.querySelector(`.prod-card[data-pid="${prodId}"]`);
+        if (card) card.classList.toggle('selected', state.selecionados.has(prodId));
         const count = document.getElementById('selectCount');
         if (count) count.textContent = `${state.selecionados.size} selecionado(s)`;
-        return;
+      } else {
+        navigate('produto', catId, prodId);
       }
-      navigate('produto', categoriaId, produtoId);
     }
+
     async function arquivarSelecionados() {
-      if (!state.selecionados || state.selecionados.size === 0) { toast('Selecione ao menos 1 produto', 'warning'); return; }
-      if (!confirm(`Arquivar ${state.selecionados.size} produto(s) selecionado(s)?`)) return;
-      const produtos = await dbGetAll('produtos');
-      let n = 0;
-      for (const p of produtos) {
-        if (state.selecionados.has(p.id)) { p.arquivado = true; await dbPut('produtos', p); n++; }
+      if (!state.selecionados || state.selecionados.size === 0) {
+        toast('Nenhum produto selecionado', 'warning'); return;
       }
-      state.selecao = false;
-      state.selecionados = new Set();
-      toast(`${n} produtos arquivados!`, 'success');
-      renderCategoria(state.categoriaId);
+      const n = state.selecionados.size;
+      for (const id of state.selecionados) {
+        const prod = (await dbGetAll('produtos')).find(p => p.id === id);
+        if (prod) { prod.arquivado = true; await dbPut('produtos', prod); }
+      }
+      toast(`${n} produto(s) arquivado(s)`, 'success');
+      sairSelecao();
     }
-
     async function desarquivarSelecionados() {
-      if (!state.selecionados || state.selecionados.size === 0) { toast('Selecione ao menos 1 produto', 'warning'); return; }
-      if (!confirm(`Desarquivar ${state.selecionados.size} produto(s) selecionado(s)?`)) return;
-      const produtos = await dbGetAll('produtos');
-      let n = 0;
-      for (const p of produtos) {
-        if (state.selecionados.has(p.id)) { p.arquivado = false; await dbPut('produtos', p); n++; }
+      if (!state.selecionados || state.selecionados.size === 0) {
+        toast('Nenhum produto selecionado', 'warning'); return;
       }
-      state.selecao = false;
-      state.selecionados = new Set();
-      toast(`${n} produtos desarquivados!`, 'success');
-      renderCategoria(state.categoriaId);
+      const n = state.selecionados.size;
+      for (const id of state.selecionados) {
+        const prod = (await dbGetAll('produtos')).find(p => p.id === id);
+        if (prod) { prod.arquivado = false; await dbPut('produtos', prod); }
+      }
+      toast(`${n} produto(s) desarquivado(s)`, 'success');
+      sairSelecao();
     }
-
-    function toggleIncluirArquivados() {
-      state.incluirArquivados = !(state.incluirArquivados !== false);
-      doSearch();
+    async function toggleArquivarProduto(prodId, catId) {
+      const prod = (await dbGetAll('produtos')).find(p => p.id === prodId);
+      if (!prod) return;
+      prod.arquivado = !prod.arquivado;
+      await dbPut('produtos', prod);
+      toast(prod.arquivado ? 'Produto arquivado' : 'Produto desarquivado', 'success');
+      renderCategoria(catId);
     }
-
-    function ignorarSugestao() {
-      state.sugestaoOculta = true;
-      renderHome();
+    async function arquivarTodosCategoria(catId) {
+      const prods = await dbGetByIndex('produtos', 'categoriaId', catId);
+      const orcamentos = await dbGetAll('orcamentos');
+      const filtro = state.produtoFiltro || 'todos';
+      const alvos = prods.filter(p => {
+        if (p.arquivado) return false;
+        const pos = orcamentos.filter(o => o.produtoId === p.id);
+        const comp = pos.some(o => o.comprado);
+        if (filtro === 'pendente') return pos.length === 0;
+        if (filtro === 'orcado') return pos.length > 0 && !comp;
+        if (filtro === 'comprado') return comp;
+        return true;
+      });
+      if (alvos.length === 0) { toast('Nenhum produto para arquivar neste filtro', 'warning'); return; }
+      if (!confirm(`Deseja arquivar os ${alvos.length} produto(s) deste filtro? Eles não aparecerão na tela inicial nem na lista padrão.`)) return;
+      for (const p of alvos) { p.arquivado = true; await dbPut('produtos', p); }
+      toast(`${alvos.length} produto(s) arquivado(s)`, 'success');
+      renderCategoria(catId);
+    }
+    async function desarquivarTodosCategoria(catId) {
+      const prods = await dbGetByIndex('produtos', 'categoriaId', catId);
+      const arqs = prods.filter(p => p.arquivado);
+      if (arqs.length === 0) { toast('Nenhum produto arquivado', 'info'); return; }
+      if (!confirm(`Deseja desarquivar todos os ${arqs.length} produto(s)?`)) return;
+      for (const p of arqs) { p.arquivado = false; await dbPut('produtos', p); }
+      toast(`${arqs.length} produto(s) desarquivado(s)`, 'success');
+      renderCategoria(catId);
     }
     async function arquivarSugeridos() {
+      const trintaDias = 30 * 24 * 60 * 60 * 1000;
       const produtos = await dbGetAll('produtos');
       const orcamentos = await dbGetAll('orcamentos');
-      const trintaDias = 30 * 24 * 60 * 60 * 1000;
       const sugeridos = produtos.filter(p => {
         if (p.arquivado) return false;
         const pos = orcamentos.filter(o => o.produtoId === p.id);
@@ -1838,152 +1150,756 @@
         const ultima = Math.max(...pos.map(o => new Date(o.data || o.criadoEm).getTime()));
         return (Date.now() - ultima) > trintaDias;
       });
-      if (sugeridos.length === 0) return;
       for (const p of sugeridos) { p.arquivado = true; await dbPut('produtos', p); }
-      toast(`${sugeridos.length} produtos arquivados!`, 'success');
+      toast(`${sugeridos.length} produto(s) arquivado(s)`, 'success');
       renderHome();
     }
+    function ignorarSugestao() { state.sugestaoOculta = true; renderHome(); }
+    function toggleIncluirArquivados() { state.incluirArquivados = !state.incluirArquivados; doSearch(); }
 
-    function switchTab(tab) { state.tab = tab; renderCategoria(state.categoriaId); }
+    async function renderProduto(categoriaId, produtoId) {
+      const categoria = (await dbGetAll('categorias')).find(c => c.id === categoriaId);
+      const produto = (await dbGetAll('produtos')).find(p => p.id === produtoId);
+      if (!produto || !categoria) { navigate('home'); return; }
+      const orcamentos = await dbGetByIndex('orcamentos', 'produtoId', produtoId);
+      const fornecedores = await dbGetByIndex('fornecedores', 'categoriaId', categoriaId);
+      const orcsValidos = orcamentos.filter(o => !o.indisponivel);
+      const precos = orcsValidos.map(o => o.preco);
+      const menorPreco = precos.length > 0 ? Math.min(...precos) : null;
+      const maiorPreco = precos.length > 0 ? Math.max(...precos) : null;
+      const mediaPreco = precos.length > 0 ? precos.reduce((a,b)=>a+b,0)/precos.length : null;
+      const economia = (menorPreco && maiorPreco) ? maiorPreco - menorPreco : 0;
+      const temComprado = orcamentos.some(o => o.comprado);
 
-    function filtrarProdutos(filtro) {
-      state.produtoFiltro = filtro;
-      document.querySelectorAll('.chip[data-filter]').forEach(c => {
-        c.classList.toggle('active', c.dataset.filter === filtro);
+      const orcsOrdenados = [...orcamentos].sort((a,b) => {
+        if (a.comprado && !b.comprado) return -1;
+        if (!a.comprado && b.comprado) return 1;
+        if (a.indisponivel && !b.indisponivel) return 1;
+        if (!a.indisponivel && b.indisponivel) return -1;
+        return a.preco - b.preco;
       });
-      document.querySelectorAll('.prod-card').forEach(card => {
-        const st = card.dataset.status;
-        const show = filtro === 'todos' ? st !== 'arquivado' : st === filtro;
-        card.style.display = show ? '' : 'none';
-      });
+
+      let html = `
+        <div class="prod-header">
+          <div class="cat-header-top">
+            <button class="hero-btn" onclick="navigate('categoria', ${categoria.id})">${ICONS.back}</button>
+            <div class="hero-actions">
+              <button class="hero-btn" onclick="toggleArquivarProduto(${produto.id}, ${categoria.id})" title="${produto.arquivado ? 'Desarquivar' : 'Arquivar'}">${produto.arquivado ? '📤' : '📁'}</button>
+              <button class="hero-btn" onclick="openModal('modalEditProduto')">${ICONS.edit}</button>
+              <button class="hero-btn" onclick="excluirProduto(${produto.id}, ${categoria.id})">${ICONS.trash}</button>
+            </div>
+          </div>
+          <div class="cat-header-title">${produto.nome}</div>
+          <div class="cat-header-sub">${produto.descricao || ''}${produto.produtoPara ? ' · 👤 ' + produto.produtoPara : ''} · ${produto.unidade}</div>
+        </div>
+        <div class="breadcrumb">
+          <a onclick="navigate('home')">Início</a><span class="breadcrumb-sep">›</span>
+          <a onclick="navigate('categoria', ${categoria.id})">${categoria.nome}</a><span class="breadcrumb-sep">›</span>
+          <span>${produto.nome}</span>
+        </div>
+        <div class="content">
+      `;
+
+      if (orcsValidos.length > 0) {
+        html += `
+          <div class="stats-row" style="margin-top:16px;">
+            <div class="stat-box"><div class="stat-value">${formatMoney(menorPreco)}</div><div class="stat-label">Melhor Preço</div></div>
+            <div class="stat-box"><div class="stat-value">${formatMoney(mediaPreco)}</div><div class="stat-label">Média</div></div>
+            <div class="stat-box"><div class="stat-value">${formatMoney(economia)}</div><div class="stat-label">Economia Max</div></div>
+          </div>`;
+      }
+
+      html += `<div class="section-title">Orçamentos (${orcamentos.length})<a onclick="abrirModalOrcamento(${produto.id}, ${categoria.id})">+ Adicionar</a></div>`;
+
+      if (orcamentos.length === 0) {
+        html += `<div class="empty"><div class="empty-icon">🏷️</div><div class="empty-title">Nenhum orçamento</div><div class="empty-text">Adicione preços de diferentes fornecedores para comparar</div></div>`;
+      } else {
+        for (let i = 0; i < orcsOrdenados.length; i++) {
+          const o = orcsOrdenados[i];
+          const isBest = !o.indisponivel && o.preco === menorPreco && orcsValidos.length > 1;
+          const isComprado = !!o.comprado;
+          const isIndisp = !!o.indisponivel;
+          let rankClass = '';
+          if (isComprado) {
+            rankClass = '';
+          } else if (!isIndisp) {
+            if (i === 0) rankClass = 'gold';
+            else if (i === 1) rankClass = 'silver';
+            else if (i === 2) rankClass = 'bronze';
+          }
+          const diff = (maiorPreco && !isIndisp && o.preco > menorPreco) ? `(+${formatMoney(o.preco - menorPreco)})` : '';
+          const diffEco = (isBest && maiorPreco > menorPreco) ? `Economiza ${formatMoney(maiorPreco - menorPreco)}` : '';
+          const statusCls = isComprado ? 'comprado' : isIndisp ? 'indisponivel' : isBest ? 'best' : '';
+          const iconeRank = isComprado ? '✅' : isIndisp ? '❌' : (i + 1);
+
+          html += `
+            <div class="orc-item ${statusCls}">
+              <div class="orc-rank ${rankClass}">${iconeRank}</div>
+              <div class="orc-info">
+                <div class="orc-forn">${o.fornecedor}${isComprado ? '<span class="selo-comprado">COMPRADO</span>' : ''}${isIndisp ? '<span style="font-size:10px;font-weight:700;color:var(--danger);margin-left:6px;">INDISPONÍVEL</span>' : ''}</div>
+                <div class="orc-detalhes">
+                  ${formatDate(o.data)}${o.quantidade > 1 ? ` · Qtd: ${o.quantidade}` : ''}
+                  ${o.observacao ? ` · <em>${o.observacao}</em>` : ''}
+                  ${diff ? ` · <span style="color:var(--danger)">${diff}</span>` : ''}
+                  ${diffEco ? ` · <strong style="color:var(--success)">${diffEco}</strong>` : ''}
+                </div>
+              </div>
+              <div class="orc-preco ${isBest ? 'best' : ''}">${formatOrcPreco(o)}</div>
+              <div class="orc-actions">
+                <button class="icon-btn" onclick="marcarComprado(${o.id}, ${produto.id}, ${categoria.id})" title="${isComprado ? 'Desmarcar compra' : 'Marcar como comprado'}" style="${isComprado ? 'background:var(--success);color:#fff;border-color:var(--success);' : ''}">✓</button>
+                <button class="icon-btn" onclick="editarOrcamento(${o.id}, ${produto.id}, ${categoria.id})" title="Editar">${ICONS.edit}</button>
+                <button class="icon-btn" onclick="excluirOrcamento(${o.id}, ${produto.id}, ${categoria.id})" title="Excluir">${ICONS.trash}</button>
+              </div>
+            </div>`;
+        }
+      }
+
+      const fornsComOrc = orcamentos.map(o => o.fornecedor);
+      const fornsFaltantes = fornecedores.filter(f => !fornsComOrc.includes(f.nome));
+      if (fornsFaltantes.length > 0) {
+        html += `<div class="section-title">Lojas sem orçamento (${fornsFaltantes.length})</div>`;
+        for (const f of fornsFaltantes) {
+          html += `
+            <div class="forn-faltante">
+              <div class="forn-icon">🏪</div>
+              <div class="forn-nome">${f.nome}</div>
+              <button class="btn btn-primary" style="width:auto;padding:6px 12px;font-size:12px;margin-left:auto;" onclick="cotarFornecedor('${f.nome}', ${produto.id}, ${categoria.id})">+ Cotar</button>
+            </div>`;
+        }
+      }
+
+      html += `</div>`;
+      html += renderBottomNav('home');
+      html += `
+        <div class="modal-overlay" id="modalOrcamento">
+          <div class="modal">
+            <div class="modal-header"><div class="modal-title">Novo Orçamento</div><button class="icon-btn" onclick="closeModal('modalOrcamento')">${ICONS.close}</button></div>
+            <div class="modal-body">
+              <div class="form-group"><label class="form-label">Fornecedor / Loja</label>
+                <input class="form-input" id="orcFornecedor" placeholder="Ex: Drogaria São Paulo" list="fornList">
+                <datalist id="fornList">${fornecedores.map(f => `<option value="${f.nome}">`).join('')}</datalist>
+              </div>
+              <div class="form-group"><label class="form-label">Preço (R$)</label><input class="form-input" id="orcPreco" type="number" step="0.01" min="0" placeholder="0,00"></div>
+              <div class="form-group"><label class="form-label">Quantidade</label><input class="form-input" id="orcQtd" type="number" value="1" min="1"></div>
+              <div class="form-group"><label class="form-label">Data</label><input class="form-input" id="orcData" type="date" value="${getHoje()}"></div>
+              <div class="form-group"><label class="form-label">Observações (opcional)</label><input class="form-input" id="orcObs" placeholder="Ex: À vista com desconto, frete grátis..."></div>
+              <div class="form-group">
+                <label class="form-check"><input type="checkbox" id="orcIndisponivel" onchange="togglePrecoIndisponivel(this)"><span>Produto indisponível neste fornecedor</span></label>
+              </div>
+              <div class="form-group">
+                <label class="form-check"><input type="checkbox" id="orcComprado"><span>Comprei este item aqui</span></label>
+              </div>
+              <button class="btn btn-primary" onclick="salvarOrcamento(${produto.id}, ${categoria.id})">Salvar Orçamento</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-overlay" id="modalEditProduto">
+          <div class="modal">
+            <div class="modal-header"><div class="modal-title">Editar Produto</div><button class="icon-btn" onclick="closeModal('modalEditProduto')">${ICONS.close}</button></div>
+            <div class="modal-body">
+              <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="editProdNome" value="${produto.nome}"></div>
+              <div class="form-group"><label class="form-label">Descrição</label><input class="form-input" id="editProdDesc" value="${produto.descricao || ''}"></div>
+              <div class="form-group"><label class="form-label">Produto Para (opcional)</label><input class="form-input" id="editProdPara" value="${produto.produtoPara || ''}"></div>
+              <div class="form-group"><label class="form-label">Unidade</label>
+                <select class="form-select" id="editProdUnidade" onchange="toggleEditUnidadeManual()">
+                  ${['unidade','caixa','saco','kg','litro','metro','pacote','kit'].includes(produto.unidade) ? `
+                    <option value="unidade" ${produto.unidade==='unidade'?'selected':''}>Unidade</option>
+                    <option value="caixa" ${produto.unidade==='caixa'?'selected':''}>Caixa</option>
+                    <option value="saco" ${produto.unidade==='saco'?'selected':''}>Saco</option>
+                    <option value="kg" ${produto.unidade==='kg'?'selected':''}>Quilograma</option>
+                    <option value="litro" ${produto.unidade==='litro'?'selected':''}>Litro</option>
+                    <option value="metro" ${produto.unidade==='metro'?'selected':''}>Metro</option>
+                    <option value="pacote" ${produto.unidade==='pacote'?'selected':''}>Pacote</option>
+                    <option value="kit" ${produto.unidade==='kit'?'selected':''}>Kit</option>
+                    <option value="__outro__">✏️ Outro</option>
+                  ` : `
+                    <option value="unidade">Unidade</option><option value="caixa">Caixa</option><option value="saco">Saco</option>
+                    <option value="kg">Quilograma</option><option value="litro">Litro</option><option value="metro">Metro</option>
+                    <option value="pacote">Pacote</option><option value="kit">Kit</option>
+                    <option value="__outro__" selected>✏️ Outro (${produto.unidade})</option>
+                  `}
+                </select>
+              </div>
+              <div class="form-group" id="editProdUnidadeManualGroup" style="display:${['unidade','caixa','saco','kg','litro','metro','pacote','kit'].includes(produto.unidade)?'none':''};">
+                <label class="form-label">Digite a unidade</label>
+                <input class="form-input" id="editProdUnidadeManual" value="${['unidade','caixa','saco','kg','litro','metro','pacote','kit'].includes(produto.unidade)?'':produto.unidade}">
+              </div>
+              <button class="btn btn-primary" onclick="atualizarProduto(${produto.id}, ${categoria.id})">Salvar Alterações</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-overlay" id="modalEditOrcamento">
+          <div class="modal">
+            <div class="modal-header"><div class="modal-title">Editar Orçamento</div><button class="icon-btn" onclick="closeModal('modalEditOrcamento')">${ICONS.close}</button></div>
+            <div class="modal-body">
+              <div class="form-group"><label class="form-label">Fornecedor / Loja</label>
+                <input class="form-input" id="editOrcFornecedor" list="editFornList">
+                <datalist id="editFornList">${fornecedores.map(f => `<option value="${f.nome}">`).join('')}</datalist>
+              </div>
+              <div class="form-group"><label class="form-label">Preço (R$)</label><input class="form-input" id="editOrcPreco" type="number" step="0.01" min="0"></div>
+              <div class="form-group"><label class="form-label">Quantidade</label><input class="form-input" id="editOrcQtd" type="number" min="1"></div>
+              <div class="form-group"><label class="form-label">Data</label><input class="form-input" id="editOrcData" type="date"></div>
+              <div class="form-group"><label class="form-label">Observações (opcional)</label><input class="form-input" id="editOrcObs"></div>
+              <div class="form-group">
+                <label class="form-check"><input type="checkbox" id="editOrcIndisponivel" onchange="toggleEditPrecoIndisponivel(this)"><span>Produto indisponível neste fornecedor</span></label>
+              </div>
+              <div class="form-group">
+                <label class="form-check"><input type="checkbox" id="editOrcComprado"><span>Comprei este item aqui</span></label>
+              </div>
+              <button class="btn btn-primary" id="btnSalvarEditOrc">Salvar Alterações</button>
+            </div>
+          </div>
+        </div>`;
+
+      document.getElementById('app').innerHTML = html;
     }
 
-    function navigate(view, categoriaId, produtoId) {
-      const newState = { view, categoriaId, produtoId, tab: state.tab || 'produtos', selecao: false, selecionados: new Set(), incluirArquivados: state.incluirArquivados !== false, sugestaoOculta: state.sugestaoOculta };
-      state = newState;
-      if (view !== 'home' || navHistory.length === 0) {
-        pushHistory(view, categoriaId, produtoId, state.tab);
+    function togglePrecoIndisponivel(cb) {
+      const precoInput = document.getElementById('orcPreco');
+      if (cb.checked) { precoInput.value = ''; precoInput.disabled = true; precoInput.placeholder = 'Indisponível'; }
+      else { precoInput.disabled = false; precoInput.placeholder = '0,00'; }
+    }
+    function toggleEditPrecoIndisponivel(cb) {
+      const precoInput = document.getElementById('editOrcPreco');
+      if (cb.checked) { precoInput.value = ''; precoInput.disabled = true; precoInput.placeholder = 'Indisponível'; }
+      else { precoInput.disabled = false; precoInput.placeholder = '0,00'; }
+    }
+    function toggleUnidadeManual() {
+      const select = document.getElementById('prodUnidade');
+      const group = document.getElementById('prodUnidadeManualGroup');
+      if (select && group) group.style.display = select.value === '__outro__' ? '' : 'none';
+    }
+    function toggleEditUnidadeManual() {
+      const select = document.getElementById('editProdUnidade');
+      const group = document.getElementById('editProdUnidadeManualGroup');
+      if (select && group) group.style.display = select.value === '__outro__' ? '' : 'none';
+    }
+
+    async function marcarComprado(orcId, prodId, catId) {
+      const orcs = await dbGetByIndex('orcamentos', 'produtoId', prodId);
+      const orc = orcs.find(o => o.id === orcId);
+      if (!orc) return;
+      const novoStatus = !orc.comprado;
+      for (const o of orcs) { o.comprado = false; await dbPut('orcamentos', o); }
+      if (novoStatus) {
+        orc.comprado = true;
+        orc.indisponivel = false;
+        await dbPut('orcamentos', orc);
+        toast(`Compra registrada: ${orc.fornecedor} - ${formatMoney(orc.preco)}!`, 'success');
+      } else {
+        toast('Marcação de compra removida', 'info');
       }
+      renderProduto(catId, prodId);
+    }
+
+    async function renderRelatorios() {
+      const categorias = await dbGetAll('categorias');
+      const produtos = await dbGetAll('produtos');
+      const orcamentos = await dbGetAll('orcamentos');
+
+      let totalGasto = 0, totalEconomia = 0, orcsValidos = 0;
+      const gastosPorCat = {};
+      for (const c of categorias) gastosPorCat[c.id] = { nome: c.nome, total: 0, economia: 0, produtosComprados: 0, count: 0 };
+
+      for (const p of produtos) {
+        if (p.arquivado) continue;
+        const pos = orcamentos.filter(o => o.produtoId === p.id);
+        const comprado = pos.find(o => o.comprado && !o.indisponivel);
+        const cat = gastosPorCat[p.categoriaId];
+        if (comprado) {
+          totalGasto += comprado.preco;
+          const precosDisp = pos.filter(o => !o.indisponivel).map(o => o.preco);
+          if (precosDisp.length > 0) {
+            const eco = Math.max(...precosDisp) - comprado.preco;
+            totalEconomia += eco;
+            if (cat) { cat.economia += eco; cat.total += comprado.preco; cat.produtosComprados++; }
+          }
+        }
+        if (cat) cat.count += pos.length;
+        orcsValidos += pos.length;
+      }
+
+      const totalPossivel = totalGasto + totalEconomia;
+      const pctEconomia = totalPossivel > 0 ? Math.round((totalEconomia / totalPossivel) * 100) : 0;
+      const forns = {};
+      for (const o of orcamentos) {
+        if (o.indisponivel) continue;
+        if (!forns[o.fornecedor]) forns[o.fornecedor] = { total: 0, count: 0, vitorias: 0 };
+        forns[o.fornecedor].total += o.preco;
+        forns[o.fornecedor].count++;
+        if (o.comprado) forns[o.fornecedor].vitorias++;
+      }
+      const topForns = Object.entries(forns).sort((a,b) => b[1].count - a[1].count).slice(0, 5);
+
+      let html = `
+        <div class="hero-compact">
+          <div class="hero-top"><span class="hero-date">ANÁLISE DE ORÇAMENTOS</span></div>
+          <div class="hero-title">Relatórios</div>
+          <div class="hero-sub">Visão geral dos seus gastos e economia</div>
+        </div>
+        <div class="content" style="padding-top:16px;">
+          <div class="stats-row">
+            <div class="stat-box"><div class="stat-value">${produtos.some(p => orcamentos.filter(o => o.produtoId === p.id).some(o => o.comprado)) ? formatMoney(totalGasto) : '—'}</div><div class="stat-label">Total Comprado</div></div>
+            <div class="stat-box"><div class="stat-value">${produtos.some(p => orcamentos.filter(o => o.produtoId === p.id).some(o => o.comprado)) ? formatMoney(totalEconomia) : '—'}</div><div class="stat-label">Economia Total</div></div>
+            <div class="stat-box"><div class="stat-value">${produtos.some(p => orcamentos.filter(o => o.produtoId === p.id).some(o => o.comprado)) ? pctEconomia + '%' : '—'}</div><div class="stat-label">% Economia</div></div>
+          </div>
+          <div class="report-card">
+            <div class="report-title">Resumo Geral</div>
+            <div style="font-size:13px;line-height:2;">
+              <div>Categorias cadastradas: <strong>${categorias.length}</strong></div>
+              <div>Produtos cadastrados: <strong>${produtos.filter(p => !p.arquivado).length}</strong> (${produtos.filter(p => p.arquivado).length} arquivados)</div>
+              <div>Total de orçamentos: <strong>${orcamentos.length}</strong></div>
+              <div>Itens comprados: <strong>${produtos.filter(p => !p.arquivado && orcamentos.filter(o => o.produtoId === p.id).some(o => o.comprado)).length}</strong></div>
+            </div>
+          </div>
+      `;
+
+      const catsComGasto = Object.values(gastosPorCat).filter(c => c.total > 0);
+      if (catsComGasto.length > 0) {
+        const maxGasto = Math.max(...catsComGasto.map(c => c.total));
+        html += `<div class="report-card"><div class="report-title">Gastos por Categoria</div>`;
+        for (const c of catsComGasto) {
+          const pct = maxGasto > 0 ? Math.round((c.total / maxGasto) * 100) : 0;
+          html += `
+            <div class="chart-bar">
+              <div class="chart-label">${c.nome}</div>
+              <div class="chart-track"><div class="chart-fill" style="width:${pct}%;background:var(--primary-600);"></div></div>
+              <div class="chart-value">${formatMoney(c.total)}</div>
+            </div>`;
+        }
+        html += `</div>`;
+      }
+
+      if (topForns.length > 0) {
+        html += `<div class="report-card"><div class="report-title">Fornecedores Mais Cotados</div>`;
+        for (const [nome, dados] of topForns) {
+          html += `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;">
+              <div><strong>${nome}</strong><div style="font-size:11px;color:var(--text-muted);">${dados.count} cotaç${dados.count===1?'ão':'ões'} · ${dados.vitorias} compra${dados.vitorias===1?'':'s'}</div></div>
+              <div style="font-weight:700;">Média: ${formatMoney(dados.total / dados.count)}</div>
+            </div>`;
+        }
+        html += `</div>`;
+      }
+
+      html += `</div>`;
+      html += renderBottomNav('relatorios');
+      document.getElementById('app').innerHTML = html;
+    }
+
+    async function renderConfig() {
+      const theme = getTheme();
+      const produtos = await dbGetAll('produtos');
+      const orcamentos = await dbGetAll('orcamentos');
+      const fornecedores = await dbGetAll('fornecedores');
+      const categorias = await dbGetAll('categorias');
+      const totalItens = produtos.length + orcamentos.length + fornecedores.length + categorias.length;
+
+      let html = `
+        <div class="hero-compact">
+          <div class="hero-top"><span class="hero-date">SISTEMA</span></div>
+          <div class="hero-title">Configurações</div>
+          <div class="hero-sub">Preferências e dados do aplicativo</div>
+        </div>
+        <div class="content" style="padding-top:16px;">
+          <div class="section-title">Aparência</div>
+          <div class="settings-list">
+            <div class="settings-item" onclick="toggleTheme()">
+              <div class="settings-icon">${theme==='dark'?ICONS.moon:ICONS.sun}</div>
+              <div class="settings-info"><div class="settings-name">Tema</div><div class="settings-desc">${theme==='dark'?'Escuro':'Claro'} — Clique para alternar</div></div>
+              <div class="settings-arrow">${ICONS.arrowRight}</div>
+            </div>
+          </div>
+          <div class="section-title">Dados</div>
+          <div class="settings-list">
+            <div class="settings-item" onclick="exportarBackup()">
+              <div class="settings-icon">${ICONS.download}</div>
+              <div class="settings-info"><div class="settings-name">Fazer Backup (JSON)</div><div class="settings-desc">Baixar todos os dados cadastrados (${totalItens} registros)</div></div>
+              <div class="settings-arrow">${ICONS.arrowRight}</div>
+            </div>
+            <div class="settings-item" onclick="document.getElementById('importFile').click()">
+              <div class="settings-icon">${ICONS.upload}</div>
+              <div class="settings-info"><div class="settings-name">Restaurar Backup</div><div class="settings-desc">Importar arquivo JSON previamente exportado</div></div>
+              <div class="settings-arrow">${ICONS.arrowRight}</div>
+            </div>
+            <input type="file" id="importFile" accept=".json" style="display:none" onchange="importarBackup(event)">
+            <div class="settings-item" onclick="confirmarLimparDados()">
+              <div class="settings-icon" style="color:var(--danger)">${ICONS.trash}</div>
+              <div class="settings-info"><div class="settings-name" style="color:var(--danger)">Limpar Todos os Dados</div><div class="settings-desc">Apagar categorias, produtos e orçamentos</div></div>
+              <div class="settings-arrow">${ICONS.arrowRight}</div>
+            </div>
+          </div>
+          <div class="section-title">Sobre</div>
+          <div style="padding:0 16px 20px;font-size:12px;color:var(--text-muted);line-height:1.8;">
+            <div><strong>OrçaFácil PWA</strong> — v2.2.6</div>
+            <div>Aplicativo de cotação e comparação de orçamentos.</div>
+            <div>Armazenamento local via IndexedDB. Funciona 100% offline.</div>
+          </div>
+        </div>`;
+      html += renderBottomNav('config');
+      document.getElementById('app').innerHTML = html;
+    }
+
+    function renderBottomNav(active) {
+      return `
+        <nav class="bottom-nav">
+          <button class="nav-item ${active==='home'?'active':''}" onclick="navigate('home')">${ICONS.home}<span>Início</span></button>
+          <button class="nav-item ${active==='relatorios'?'active':''}" onclick="navigate('relatorios')">${ICONS.chart}<span>Relatórios</span></button>
+          <button class="nav-fab" onclick="handleFabClick()" title="Adicionar">${ICONS.plus}</button>
+          <button class="nav-item ${active==='config'?'active':''}" onclick="navigate('config')">${ICONS.settings}<span>Ajustes</span></button>
+        </nav>`;
+    }
+
+    function navigate(view, categoriaId=null, produtoId=null) {
+      state.selecao = false;
+      state.selecionados = new Set();
+      state.produtoFiltro = 'todos'; // CORREÇÃO: Reseta o filtro para 'todos' sempre que navega
+      pushHistory(view, categoriaId, produtoId, state.tab);
+      state = { ...state, view, categoriaId, produtoId, tab: state.tab || 'produtos', produtoFiltro: 'todos' };
       if (view === 'home') renderHome();
       else if (view === 'categoria') renderCategoria(categoriaId);
       else if (view === 'produto') renderProduto(categoriaId, produtoId);
-      else if (view === 'reports') renderRelatorios();
-      else if (view === 'settings') renderConfiguracoes();
+      else if (view === 'relatorios') renderRelatorios();
+      else if (view === 'config') renderConfig();
+      window.scrollTo(0, 0);
     }
 
+    function switchTab(tab) { state.tab = tab; renderCategoria(state.categoriaId); }
     function refreshCurrentView() {
       if (state.view === 'home') renderHome();
       else if (state.view === 'categoria') renderCategoria(state.categoriaId);
       else if (state.view === 'produto') renderProduto(state.categoriaId, state.produtoId);
-      else if (state.view === 'reports') renderRelatorios();
-      else if (state.view === 'settings') renderConfiguracoes();
+      else if (state.view === 'relatorios') renderRelatorios();
+      else if (state.view === 'config') renderConfig();
     }
 
-    let swRegistration = null;
+    function handleFabClick() {
+      if (state.view === 'home') openModal('modalCategoria');
+      else if (state.view === 'categoria') {
+        if (state.tab === 'produtos') openModal('modalProduto');
+        else openModal('modalFornecedor');
+      }
+      else if (state.view === 'produto') abrirModalOrcamento(state.produtoId, state.categoriaId);
+      else openModal('modalCategoria');
+    }
+
+    async function salvarCategoria() {
+      const nome = document.getElementById('catNome').value.trim();
+      const tipo = document.getElementById('catTipo').value;
+      const desc = document.getElementById('catDesc').value.trim();
+      if (!nome) { toast('Digite o nome da categoria', 'danger'); return; }
+      await dbAdd('categorias', { nome, tipo, descricao: desc, criadoEm: Date.now() });
+      toast('Categoria criada com sucesso!', 'success');
+      closeModal('modalCategoria');
+      renderHome();
+    }
+    async function salvarProduto(categoriaId) {
+      const nome = document.getElementById('prodNome').value.trim();
+      const desc = document.getElementById('prodDesc').value.trim();
+      const para = document.getElementById('prodPara').value.trim();
+      const unSel = document.getElementById('prodUnidade').value;
+      let unidade = unSel;
+      if (unSel === '__outro__') {
+        const manual = document.getElementById('prodUnidadeManual').value.trim();
+        if (!manual) { toast('Digite a unidade do produto', 'danger'); return; }
+        unidade = manual;
+      }
+      if (!nome) { toast('Digite o nome do produto', 'danger'); return; }
+      await dbAdd('produtos', { categoriaId, nome, descricao: desc, produtoPara: para, unidade, criadoEm: Date.now() });
+      toast('Produto adicionado!', 'success');
+      closeModal('modalProduto');
+      renderCategoria(categoriaId);
+    }
+    async function salvarFornecedor(categoriaId) {
+      const nome = document.getElementById('fornNome').value.trim();
+      const tel = document.getElementById('fornTel').value.trim();
+      const end = document.getElementById('fornEnd').value.trim();
+      if (!nome) { toast('Digite o nome do fornecedor', 'danger'); return; }
+      await dbAdd('fornecedores', { categoriaId, nome, telefone: tel, endereco: end, criadoEm: Date.now() });
+      toast('Fornecedor cadastrado!', 'success');
+      closeModal('modalFornecedor');
+      renderCategoria(categoriaId);
+    }
+    function abrirModalOrcamento(produtoId, categoriaId) {
+      document.getElementById('orcFornecedor').value = '';
+      document.getElementById('orcPreco').value = '';
+      document.getElementById('orcPreco').disabled = false;
+      document.getElementById('orcPreco').placeholder = '0,00';
+      document.getElementById('orcQtd').value = '1';
+      document.getElementById('orcData').value = getHoje();
+      document.getElementById('orcObs').value = '';
+      document.getElementById('orcIndisponivel').checked = false;
+      document.getElementById('orcComprado').checked = false;
+      openModal('modalOrcamento');
+    }
+    function cotarFornecedor(nomeForn, produtoId, categoriaId) {
+      abrirModalOrcamento(produtoId, categoriaId);
+      document.getElementById('orcFornecedor').value = nomeForn;
+    }
+    async function salvarOrcamento(produtoId, categoriaId) {
+      const forn = document.getElementById('orcFornecedor').value.trim();
+      const precoRaw = document.getElementById('orcPreco').value;
+      const qtd = parseInt(document.getElementById('orcQtd').value) || 1;
+      const data = document.getElementById('orcData').value || getHoje();
+      const obs = document.getElementById('orcObs').value.trim();
+      const indisponivel = document.getElementById('orcIndisponivel').checked;
+      const comprado = document.getElementById('orcComprado').checked;
+      if (!forn) { toast('Digite o fornecedor', 'danger'); return; }
+      let preco = 0;
+      if (!indisponivel) {
+        preco = parseFloat(precoRaw);
+        if (isNaN(preco) || preco < 0) { toast('Digite um preço válido', 'danger'); return; }
+      }
+      if (comprado) {
+        const orcsExistentes = await dbGetByIndex('orcamentos', 'produtoId', produtoId);
+        for (const o of orcsExistentes) { o.comprado = false; await dbPut('orcamentos', o); }
+      }
+      await dbAdd('orcamentos', { produtoId, fornecedor: forn, preco, quantidade: qtd, data, observacao: obs, indisponivel, comprado: indisponivel ? false : comprado, criadoEm: Date.now() });
+      toast('Orçamento salvo!', 'success');
+      closeModal('modalOrcamento');
+      renderProduto(categoriaId, produtoId);
+    }
+
+    async function atualizarCategoria(id) {
+      const cat = (await dbGetAll('categorias')).find(c => c.id === id);
+      if (!cat) return;
+      cat.nome = document.getElementById('editCatNome').value.trim();
+      cat.descricao = document.getElementById('editCatDesc').value.trim();
+      if (!cat.nome) { toast('Nome obrigatório', 'danger'); return; }
+      await dbPut('categorias', cat);
+      toast('Categoria atualizada!', 'success');
+      closeModal('modalEditCategoria');
+      renderCategoria(id);
+    }
+    async function excluirCategoria(id) {
+      if (!confirm('Deseja excluir esta categoria? Todos os produtos, fornecedores e orçamentos vinculados serão apagados!')) return;
+      const produtos = await dbGetByIndex('produtos', 'categoriaId', id);
+      for (const p of produtos) {
+        const orcs = await dbGetByIndex('orcamentos', 'produtoId', p.id);
+        for (const o of orcs) await dbDelete('orcamentos', o.id);
+        await dbDelete('produtos', p.id);
+      }
+      const forns = await dbGetByIndex('fornecedores', 'categoriaId', id);
+      for (const f of forns) await dbDelete('fornecedores', f.id);
+      await dbDelete('categorias', id);
+      toast('Categoria excluída', 'info');
+      navigate('home');
+    }
+    async function atualizarProduto(id, categoriaId) {
+      const prod = (await dbGetAll('produtos')).find(p => p.id === id);
+      if (!prod) return;
+      prod.nome = document.getElementById('editProdNome').value.trim();
+      prod.descricao = document.getElementById('editProdDesc').value.trim();
+      prod.produtoPara = document.getElementById('editProdPara').value.trim();
+      const unSel = document.getElementById('editProdUnidade').value;
+      if (unSel === '__outro__') {
+        const manual = document.getElementById('editProdUnidadeManual').value.trim();
+        if (!manual) { toast('Digite a unidade', 'danger'); return; }
+        prod.unidade = manual;
+      } else {
+        prod.unidade = unSel;
+      }
+      if (!prod.nome) { toast('Nome obrigatório', 'danger'); return; }
+      await dbPut('produtos', prod);
+      toast('Produto atualizado!', 'success');
+      closeModal('modalEditProduto');
+      renderProduto(categoriaId, id);
+    }
+    async function excluirProduto(id, categoriaId) {
+      if (!confirm('Deseja excluir este produto e todos os seus orçamentos?')) return;
+      const orcs = await dbGetByIndex('orcamentos', 'produtoId', id);
+      for (const o of orcs) await dbDelete('orcamentos', o.id);
+      await dbDelete('produtos', id);
+      toast('Produto excluído', 'info');
+      navigate('categoria', categoriaId);
+    }
+    async function editarFornecedor(id, categoriaId) {
+      const f = (await dbGetAll('fornecedores')).find(item => item.id === id);
+      if (!f) return;
+      document.getElementById('editFornNome').value = f.nome;
+      document.getElementById('editFornTel').value = f.telefone || '';
+      document.getElementById('editFornEnd').value = f.endereco || '';
+      state._editFornId = id;
+      openModal('modalEditFornecedor');
+    }
+    async function atualizarFornecedor(categoriaId) {
+      const id = state._editFornId;
+      const f = (await dbGetAll('fornecedores')).find(item => item.id === id);
+      if (!f) return;
+      f.nome = document.getElementById('editFornNome').value.trim();
+      f.telefone = document.getElementById('editFornTel').value.trim();
+      f.endereco = document.getElementById('editFornEnd').value.trim();
+      if (!f.nome) { toast('Nome obrigatório', 'danger'); return; }
+      await dbPut('fornecedores', f);
+      toast('Fornecedor atualizado!', 'success');
+      closeModal('modalEditFornecedor');
+      renderCategoria(categoriaId);
+    }
+    async function excluirFornecedor(id, categoriaId) {
+      if (!confirm('Deseja excluir este fornecedor?')) return;
+      await dbDelete('fornecedores', id);
+      toast('Fornecedor excluído', 'info');
+      renderCategoria(categoriaId);
+    }
+    async function editarOrcamento(id, produtoId, categoriaId) {
+      const o = (await dbGetAll('orcamentos')).find(item => item.id === id);
+      if (!o) return;
+      document.getElementById('editOrcFornecedor').value = o.fornecedor;
+      document.getElementById('editOrcPreco').value = o.indisponivel ? '' : o.preco;
+      document.getElementById('editOrcPreco').disabled = !!o.indisponivel;
+      document.getElementById('editOrcPreco').placeholder = o.indisponivel ? 'Indisponível' : '0,00';
+      document.getElementById('editOrcQtd').value = o.quantidade;
+      document.getElementById('editOrcData').value = o.data;
+      document.getElementById('editOrcObs').value = o.observacao || '';
+      document.getElementById('editOrcIndisponivel').checked = !!o.indisponivel;
+      document.getElementById('editOrcComprado').checked = !!o.comprado;
+      document.getElementById('btnSalvarEditOrc').onclick = () => atualizarOrcamento(id, produtoId, categoriaId);
+      openModal('modalEditOrcamento');
+    }
+    async function atualizarOrcamento(id, produtoId, categoriaId) {
+      const o = (await dbGetAll('orcamentos')).find(item => item.id === id);
+      if (!o) return;
+      const forn = document.getElementById('editOrcFornecedor').value.trim();
+      const precoRaw = document.getElementById('editOrcPreco').value;
+      const qtd = parseInt(document.getElementById('editOrcQtd').value) || 1;
+      const data = document.getElementById('editOrcData').value || getHoje();
+      const obs = document.getElementById('editOrcObs').value.trim();
+      const indisponivel = document.getElementById('editOrcIndisponivel').checked;
+      const comprado = document.getElementById('editOrcComprado').checked;
+      if (!forn) { toast('Digite o fornecedor', 'danger'); return; }
+      let preco = 0;
+      if (!indisponivel) {
+        preco = parseFloat(precoRaw);
+        if (isNaN(preco) || preco < 0) { toast('Digite um preço válido', 'danger'); return; }
+      }
+      if (comprado && !o.comprado) {
+        const orcs = await dbGetByIndex('orcamentos', 'produtoId', produtoId);
+        for (const item of orcs) { item.comprado = false; await dbPut('orcamentos', item); }
+      }
+      o.fornecedor = forn; o.preco = preco; o.quantidade = qtd; o.data = data; o.observacao = obs;
+      o.indisponivel = indisponivel; o.comprado = indisponivel ? false : comprado;
+      await dbPut('orcamentos', o);
+      toast('Orçamento atualizado!', 'success');
+      closeModal('modalEditOrcamento');
+      renderProduto(categoriaId, produtoId);
+    }
+    async function excluirOrcamento(id, produtoId, categoriaId) {
+      if (!confirm('Deseja excluir este orçamento?')) return;
+      await dbDelete('orcamentos', id);
+      toast('Orçamento excluído', 'info');
+      renderProduto(categoriaId, produtoId);
+    }
+
+    async function exportarBackup() {
+      const data = {
+        versao: '2.2.6',
+        exportadoEm: new Date().toISOString(),
+        categorias: await dbGetAll('categorias'),
+        produtos: await dbGetAll('produtos'),
+        orcamentos: await dbGetAll('orcamentos'),
+        fornecedores: await dbGetAll('fornecedores'),
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `orcafacil-backup-${getHoje()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast('Backup exportado com sucesso!', 'success');
+    }
+    async function importarBackup(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if (!data.categorias || !data.produtos || !data.orcamentos) {
+          toast('Arquivo de backup inválido', 'danger'); return;
+        }
+        if (!confirm('Isso irá substituir todos os dados atuais pelos do backup. Continuar?')) return;
+        for (const store of ['categorias','produtos','orcamentos','fornecedores']) {
+          const items = await dbGetAll(store);
+          for (const item of items) await dbDelete(store, item.id);
+        }
+        for (const c of data.categorias) await dbAdd('categorias', c);
+        for (const p of data.produtos) await dbAdd('produtos', p);
+        for (const o of data.orcamentos) await dbAdd('orcamentos', o);
+        if (data.fornecedores) for (const f of data.fornecedores) await dbAdd('fornecedores', f);
+        toast('Backup restaurado com sucesso!', 'success');
+        renderHome();
+      } catch (err) {
+        toast('Erro ao importar backup: ' + err.message, 'danger');
+      }
+      e.target.value = '';
+    }
+    async function confirmarLimparDados() {
+      if (!confirm('ATENÇÃO: Isso irá apagar TODOS os seus dados permanentemente. Esta ação NÃO pode ser desfeita. Deseja continuar?')) return;
+      if (!confirm('Tem certeza absoluta? Recomendamos fazer um backup antes.')) return;
+      for (const store of ['categorias','produtos','orcamentos','fornecedores']) {
+        const items = await dbGetAll(store);
+        for (const item of items) await dbDelete(store, item.id);
+      }
+      toast('Todos os dados foram apagados', 'info');
+      await seedData();
+      renderHome();
+    }
+
+    let deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+    });
+
+    let newWorker = null;
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js')
-          .then(reg => {
-            swRegistration = reg;
-            setInterval(() => reg.update(), 30000);
-            reg.addEventListener('updatefound', () => {
-              const newWorker = reg.installing;
-              newWorker.addEventListener('statechange', () => {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  showUpdateBanner();
-                }
-              });
+        navigator.serviceWorker.register('sw.js').then((reg) => {
+          reg.addEventListener('updatefound', () => {
+            newWorker = reg.installing;
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                showUpdateBanner();
+              }
             });
-          })
-          .catch(err => console.log('SW erro:', err));
-      });
-      navigator.serviceWorker.addEventListener('message', (event) => {
-        if (event.data === 'UPDATE_AVAILABLE') {
-          showUpdateBanner();
-        }
+          });
+        }).catch((err) => console.log('SW falhou:', err));
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!refreshing) { refreshing = true; window.location.reload(); }
+        });
       });
     }
-
     function showUpdateBanner() {
       const banner = document.getElementById('update-banner');
       if (banner) banner.classList.add('active');
+    }
+    function applyUpdate() {
+      if (newWorker) newWorker.postMessage({ action: 'skipWaiting' });
+      const banner = document.getElementById('update-banner');
+      if (banner) banner.classList.remove('active');
     }
     function dismissUpdate() {
       const banner = document.getElementById('update-banner');
       if (banner) banner.classList.remove('active');
     }
-    function applyUpdate() {
-      if (swRegistration && swRegistration.waiting) {
-        swRegistration.waiting.postMessage('SKIP_WAITING');
-      }
-      window.location.reload();
-    }
-    function checkForUpdate() {
-      if (!('serviceWorker' in navigator)) {
-        toast('Atualização não disponível neste navegador', 'warning');
-        return;
-      }
-      toast('Verificando atualizações...', 'info');
-      fetch('./index.html?_=' + Date.now(), { cache: 'no-store' })
-        .then(r => r.text())
-        .then(text => {
-          const match = text.match(/<meta\s+name=["']app-version["']\s+content=["']([^"']+)["']/i);
-          const serverVersion = match ? match[1] : '1';
-          const currentVersion = document.querySelector('meta[name="app-version"]')?.content || '1';
-          if (serverVersion !== currentVersion) {
-            showUpdateBanner();
-          } else {
-            toast('Você já está na versão mais recente!', 'success');
-          }
-        })
-        .catch(() => toast('Sem conexão. Verifique sua internet.', 'warning'));
-    }
-
-    function abrirOrcamentoComFornecedor(nomeFornecedor) {
-      openModal('modalOrcamento');
-      // Tentar encontrar a loja no select
-      const select = document.getElementById('orcFornecedorSelect');
-      const manualGroup = document.getElementById('orcFornManualGroup');
-      const manualInput = document.getElementById('orcFornecedorManual');
-      if (select) {
-        let found = false;
-        for (let i = 0; i < select.options.length; i++) {
-          if (select.options[i].value === nomeFornecedor) {
-            select.selectedIndex = i;
-            found = true;
-            break;
-          }
-        }
-        if (!found) {
-          select.value = '__outro__';
-          if (manualGroup) manualGroup.style.display = 'block';
-          if (manualInput) manualInput.value = nomeFornecedor;
-        } else {
-          if (manualGroup) manualGroup.style.display = 'none';
-          if (manualInput) manualInput.value = '';
-        }
-      }
-      // Resetar campos de preço e data
-      const precoInput = document.getElementById('orcPreco');
-      if (precoInput) precoInput.value = '';
-      const qtdInput = document.getElementById('orcQtd');
-      if (qtdInput) qtdInput.value = '1';
-      const dataInput = document.getElementById('orcData');
-      if (dataInput) dataInput.value = getHoje();
-      const obsInput = document.getElementById('orcObs');
-      if (obsInput) obsInput.value = '';
-      const indisp = document.getElementById('orcIndisponivel');
-      if (indisp) { indisp.checked = false; toggleIndisponivel(); }
-      // Focar no campo de preço
-      setTimeout(() => {
-        if (precoInput && precoInput.offsetParent !== null) precoInput.focus();
-      }, 350);
-    }
 
     async function init() {
-      await initDB();
-      await seedData();
-      renderHome();
+      try {
+        await initDB();
+        await seedData();
+        renderHome();
+      } catch (err) {
+        console.error('Erro ao inicializar:', err);
+        document.getElementById('app').innerHTML = `
+          <div style="padding:40px 20px;text-align:center;">
+            <h2>Ops! Algo deu errado</h2>
+            <p style="color:var(--text-muted);margin-top:8px;">Erro ao carregar o banco de dados local.</p>
+            <button class="btn btn-primary" style="margin-top:16px;max-width:200px;" onclick="location.reload()">Recarregar</button>
+          </div>`;
+      }
     }
     init();
   </script>
