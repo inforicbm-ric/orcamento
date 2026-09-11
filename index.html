@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#0c0c14" id="themeMeta">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="app-version" content="2.3.0">
+  <meta name="app-version" content="2.3.1">
 
   <style>
     :root {
@@ -520,6 +520,56 @@
       }
     }
 
+    function renderRecentProductsHtml(produtos, categorias, orcamentos, catId = null) {
+      const catObj = catId !== null ? categorias.find(c => c.id === catId) : null;
+      const labelCat = catObj ? ` · ${catObj.nome}` : '';
+
+      const filtrados = produtos
+        .filter(p => !p.arquivado && (catId === null || p.categoriaId === catId))
+        .sort((a, b) => b.criadoEm - a.criadoEm)
+        .slice(0, 5);
+
+      let html = `<div class="section-title">📦 Últimos Produtos<span style="color:var(--primary-500);font-weight:700;">${labelCat}</span></div>`;
+
+      if (filtrados.length === 0) {
+        html += `
+          <div style="padding:22px 16px;text-align:center;background:var(--surface);border-radius:var(--radius-md);border:1.5px dashed var(--border);color:var(--text-muted);font-size:13px;margin:0 16px 16px;">
+            Nenhum produto cadastrado ${catObj ? 'em <strong>' + catObj.nome + '</strong>' : ''} ainda.
+          </div>`;
+        return html;
+      }
+
+      html += `<div class="recent-list">`;
+      for (let i = 0; i < filtrados.length; i++) {
+        const prod = filtrados[i];
+        const cat = categorias.find(c => c.id === prod.categoriaId);
+        const prodOrcs = orcamentos.filter(o => o.produtoId === prod.id);
+        const countOrcs = prodOrcs.length;
+        const temComprado = prodOrcs.some(o => o.comprado);
+        const menorPreco = countOrcs > 0 ? Math.min(...prodOrcs.filter(o => !o.indisponivel).map(o => o.preco)) : null;
+        let statusBadge = '';
+        if (temComprado) {
+          statusBadge = '<span style="font-size:10px;font-weight:800;color:var(--success);margin-left:6px;">✅ COMPRADO</span>';
+        } else if (countOrcs > 0) {
+          statusBadge = `<span style="font-size:10px;font-weight:800;color:var(--info);margin-left:6px;">${countOrcs} ORÇ${countOrcs===1?'':'AMENTOS'}</span>`;
+        } else {
+          statusBadge = '<span style="font-size:10px;font-weight:800;color:var(--text-muted);margin-left:6px;">📋 PENDENTE</span>';
+        }
+        const info = cat ? (CATEGORIA_ICONS[cat.tipo] || CATEGORIA_ICONS.outros) : CATEGORIA_ICONS.outros;
+        html += `
+          <div class="recent-item" data-cat="${prod.categoriaId}" onclick="navigate('produto', ${cat ? cat.id : 0}, ${prod.id})">
+            <div class="recent-rank" style="background:${info.bg};color:${info.color};border:none;font-size:16px;">${info.emoji}</div>
+            <div class="recent-info">
+              <div class="recent-prod">${prod.nome}${prod.produtoPara ? ' · 👤 ' + prod.produtoPara : ''}${statusBadge}</div>
+              <div class="recent-loja">${cat ? cat.nome : ''}${prod.descricao ? ' · ' + prod.descricao : ''}</div>
+            </div>
+            <div class="recent-price">${menorPreco !== null ? formatMoney(menorPreco) : '—'}</div>
+          </div>`;
+      }
+      html += `</div>`;
+      return html;
+    }
+
     async function renderHome() {
       const categorias = await dbGetAll('categorias');
       const produtos = await dbGetAll('produtos');
@@ -546,7 +596,6 @@
         }
       }
 
-      const recentes = produtos.filter(p => !p.arquivado).sort((a,b) => b.criadoEm - a.criadoEm).slice(0, 5);
       const activeCatObj = catFiltroAtual ? categorias.find(c => c.id === catFiltroAtual) : null;
       const activeLabel = activeCatObj ? `· ${activeCatObj.nome}` : '· Todas as Categorias';
 
@@ -647,37 +696,7 @@
         html += `</div>`;
       }
 
-      if (recentes.length > 0) {
-        html += `<div class="section-title">📦 Últimos Produtos</div><div class="recent-list">`;
-        for (let i = 0; i < recentes.length; i++) {
-          const prod = recentes[i];
-          const cat = categorias.find(c => c.id === prod.categoriaId);
-          const prodOrcs = orcamentos.filter(o => o.produtoId === prod.id);
-          const countOrcs = prodOrcs.length;
-          const temComprado = prodOrcs.some(o => o.comprado);
-          const menorPreco = countOrcs > 0 ? Math.min(...prodOrcs.filter(o => !o.indisponivel).map(o => o.preco)) : null;
-          let statusBadge = '';
-          if (temComprado) {
-            statusBadge = '<span style="font-size:10px;font-weight:800;color:var(--success);margin-left:6px;">✅ COMPRADO</span>';
-          } else if (countOrcs > 0) {
-            statusBadge = `<span style="font-size:10px;font-weight:800;color:var(--info);margin-left:6px;">${countOrcs} ORÇ${countOrcs===1?'':'AMENTOS'}</span>`;
-          } else {
-            statusBadge = '<span style="font-size:10px;font-weight:800;color:var(--text-muted);margin-left:6px;">📋 PENDENTE</span>';
-          }
-          const info = cat ? (CATEGORIA_ICONS[cat.tipo] || CATEGORIA_ICONS.outros) : CATEGORIA_ICONS.outros;
-          html += `
-            <div class="recent-item" data-cat="${prod.categoriaId}" onclick="navigate('produto', ${cat ? cat.id : 0}, ${prod.id})" style="${catFiltroAtual !== null && catFiltroAtual !== prod.categoriaId ? 'display:none;' : ''}">
-              <div class="recent-rank" style="background:${info.bg};color:${info.color};border:none;font-size:16px;">${info.emoji}</div>
-              <div class="recent-info">
-                <div class="recent-prod">${prod.nome}${prod.produtoPara ? ' · 👤 ' + prod.produtoPara : ''}${statusBadge}</div>
-                <div class="recent-loja">${cat ? cat.nome : ''}${prod.descricao ? ' · ' + prod.descricao : ''}</div>
-              </div>
-              <div class="recent-price">${menorPreco !== null ? formatMoney(menorPreco) : '—'}</div>
-            </div>`;
-        }
-        html += `</div>`;
-      }
-
+      html += `<div id="recentContainer">${renderRecentProductsHtml(produtos, categorias, orcamentos, catFiltroAtual)}</div>`;
       html += `</div></div>`;
       html += renderBottomNav('home');
       html += `
@@ -759,15 +778,11 @@
         }
       });
 
-      // 3. Filtrar lista de produtos recentes
-      const recents = document.querySelectorAll('.recent-item');
-      recents.forEach(item => {
-        if (catId === null || parseInt(item.dataset.cat) === catId) {
-          item.style.display = '';
-        } else {
-          item.style.display = 'none';
-        }
-      });
+      // 3. Atualizar a seção de produtos recentes para a categoria selecionada (ou todas)
+      const recentContainer = document.getElementById('recentContainer');
+      if (recentContainer) {
+        recentContainer.innerHTML = renderRecentProductsHtml(produtos, categorias, orcamentos, catId);
+      }
     }
 
     async function doSearch() {
