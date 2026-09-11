@@ -1,18 +1,15 @@
-# OrçaFácil v2.2.7 (PWA)
+# OrçaFácil v2.3.2 - Sistema de Comparação de Preços e Orçamentos
 
-Aplicativo web completo (Vanilla HTML5, CSS3 e JavaScript) para controle e comparação de orçamentos, cotações e compras.
+Sistema completo de comparação de preços e orçamentos em HTML5, CSS3 e JavaScript puro (Vanilla JS).
+Armazenamento local seguro via IndexedDB com suporte a PWA (Progressive Web App) e funcionamento 100% offline.
 
-## Estrutura dos Arquivos
-- **`index.html`**: Toda a interface, estilos e lógica da aplicação (IndexedDB v2).
-- **`sw.js`**: Service Worker para funcionamento 100% offline e atualização automática de versão.
-- **`app.webmanifest`**: Manifesto PWA para permitir a instalação como aplicativo no celular e desktop.
-- **`icons/`**: Mantenha a sua pasta de ícones existente junto com esses arquivos.
-- **`README.md`**: Instruções de uso e publicação.
+## 🚀 Novidades da Versão 2.3.2:
+- **Compartilhamento de Orçamentos no WhatsApp**: botão exclusivo na tela do produto para gerar relatório comparativo detalhado no Zap, destacando o menor preço, economia máxima, loja vencedora e lojas pesquisadas!
+- **Selo de Produto Comprado**: destaque automático do status de compra e fornecedor escolhido.
+- **Filtro de Lojas com Preço Indisponível / Disponível**.
+- **Download Instantâneo direto da Memória**: Pacote ZIP e index.html baixados diretamente sem depender de servidor.
 
-## Como Usar
-1. **Localmente**: Basta abrir o arquivo `index.html` em qualquer navegador moderno.
-2. **GitHub Pages (Recomendado para Celular/PWA)**:
-   - Crie um repositório no GitHub.
-   - Envie os arquivos desta pasta para o repositório.
-   - Nas configurações do repositório, vá em **Pages** e selecione a branch `main`.
-   - Acesse o link fornecido pelo GitHub no celular e clique em **"Adicionar à tela inicial"** para instalar como aplicativo!
+## 📦 Conteúdo do Pacote:
+- `index.html`: Aplicação completa de página única (SPA).
+- `sw.js`: Service Worker com controle dinâmico de cache e atualização.
+- `app.webmanifest`: Manifesto para instalação como PWA (app de celular ou computador).

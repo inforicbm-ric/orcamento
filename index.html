@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#0c0c14" id="themeMeta">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="app-version" content="2.3.1">
+  <meta name="app-version" content="2.3.2">
 
   <style>
     :root {
@@ -306,7 +306,7 @@
     const DB_NAME = 'OrcaFacilDB_v2'; const DB_VERSION = 1; let db = null;
     function getAppVersion() {
       const meta = document.querySelector('meta[name="app-version"]');
-      return (meta && meta.getAttribute('content')) ? meta.getAttribute('content').trim() : '2.2.8';
+      return (meta && meta.getAttribute('content')) ? meta.getAttribute('content').trim() : '2.2.9';
     }
     const APP_VERSION = getAppVersion();
 
@@ -338,6 +338,7 @@
       check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
       arrowRight: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>`,
       folder: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>`,
+      whatsapp: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.04 14.69 2 12.04 2M12.05 3.67C14.25 3.67 16.31 4.53 17.87 6.09C19.42 7.65 20.28 9.72 20.28 11.92C20.28 16.46 16.58 20.15 12.04 20.15C10.56 20.15 9.11 19.76 7.85 19L7.55 18.83L4.43 19.65L5.26 16.61L5.06 16.29C4.24 14.99 3.8 13.47 3.8 11.91C3.81 7.37 7.5 3.67 12.05 3.67M9.11 7.44C8.95 7.44 8.68 7.5 8.46 7.74C8.24 7.97 7.62 8.56 7.62 9.76C7.62 10.96 8.5 12.12 8.61 12.28C8.74 12.44 10.31 14.86 12.72 15.9C13.29 16.15 13.73 16.3 14.07 16.41C14.64 16.59 15.16 16.56 15.58 16.5C16.04 16.43 17 15.92 17.19 15.38C17.38 14.84 17.38 14.38 17.32 14.28C17.27 14.18 17.11 14.12 16.86 14C16.62 13.88 15.41 13.29 15.18 13.21C14.96 13.13 14.79 13.09 14.63 13.33C14.47 13.57 14 14.12 13.86 14.28C13.72 14.44 13.58 14.46 13.34 14.34C13.1 14.22 12.31 13.96 11.37 13.12C10.64 12.47 10.15 11.66 10.01 11.42C9.87 11.18 10 11.04 10.12 10.92C10.23 10.81 10.37 10.63 10.49 10.49C10.61 10.35 10.65 10.25 10.73 10.09C10.81 9.93 10.77 9.79 10.71 9.67C10.65 9.55 10.18 8.41 9.99 7.93C9.79 7.47 9.6 7.53 9.45 7.52C9.31 7.52 9.15 7.44 9.11 7.44Z"/></svg>`,
     };
 
     const CATEGORIA_ICONS = {
@@ -1274,6 +1275,7 @@
           <div class="cat-header-top">
             <button class="hero-btn" onclick="navigate('categoria', ${categoria.id})">${ICONS.back}</button>
             <div class="hero-actions">
+              ${orcamentos.length > 0 ? `<button class="hero-btn" onclick="compartilharOrcamentoZap(${produto.id}, ${categoria.id})" title="Compartilhar no WhatsApp" style="background:#25D366;color:#ffffff;border-color:#25D366;">${ICONS.whatsapp}</button>` : ''}
               <button class="hero-btn" onclick="toggleArquivarProduto(${produto.id}, ${categoria.id})" title="${produto.arquivado ? 'Desarquivar' : 'Arquivar'}">${produto.arquivado ? '📤' : '📁'}</button>
               <button class="hero-btn" onclick="openModal('modalEditProduto')">${ICONS.edit}</button>
               <button class="hero-btn" onclick="excluirProduto(${produto.id}, ${categoria.id})">${ICONS.trash}</button>
@@ -1296,6 +1298,16 @@
             <div class="stat-box"><div class="stat-value">${formatMoney(menorPreco)}</div><div class="stat-label">Melhor Preço</div></div>
             <div class="stat-box"><div class="stat-value">${formatMoney(mediaPreco)}</div><div class="stat-label">Média</div></div>
             <div class="stat-box"><div class="stat-value">${formatMoney(economia)}</div><div class="stat-label">Economia Max</div></div>
+          </div>`;
+      }
+
+      if (orcamentos.length > 0) {
+        html += `
+          <div style="margin:16px 0 8px;">
+            <button class="btn" onclick="compartilharOrcamentoZap(${produto.id}, ${categoria.id})" style="background:#25D366;color:#ffffff;border:none;display:flex;align-items:center;justify-content:center;gap:10px;font-weight:700;font-size:14px;padding:12px 18px;border-radius:var(--radius-md);box-shadow:0 3px 10px rgba(37,211,102,0.35);cursor:pointer;width:100%;">
+              <span style="display:inline-flex;width:20px;height:20px;">${ICONS.whatsapp}</span>
+              Compartilhar Orçamentos no WhatsApp
+            </button>
           </div>`;
       }
 
@@ -1482,6 +1494,105 @@
         toast('Marcação de compra removida', 'info');
       }
       renderProduto(catId, prodId);
+    }
+
+    async function compartilharOrcamentoZap(produtoId, categoriaId) {
+      const produto = (await dbGetAll('produtos')).find(p => p.id === produtoId);
+      const categoria = (await dbGetAll('categorias')).find(c => c.id === categoriaId);
+      if (!produto || !categoria) return;
+
+      const orcamentos = await dbGetByIndex('orcamentos', 'produtoId', produtoId);
+      if (orcamentos.length === 0) {
+        toast('Adicione pelo menos um orçamento para compartilhar!', 'danger');
+        return;
+      }
+
+      const fornecedores = await dbGetByIndex('fornecedores', 'categoriaId', categoriaId);
+      const fornsMap = {};
+      fornecedores.forEach(f => {
+        if (f.nome) fornsMap[f.nome.trim().toLowerCase()] = f;
+      });
+
+      const orcsValidos = orcamentos.filter(o => !o.indisponivel);
+      const precos = orcsValidos.map(o => o.preco);
+      const menorPreco = precos.length > 0 ? Math.min(...precos) : null;
+      const maiorPreco = precos.length > 0 ? Math.max(...precos) : null;
+      const economia = (menorPreco !== null && maiorPreco !== null && maiorPreco > menorPreco) ? (maiorPreco - menorPreco) : 0;
+
+      // Ordenar: primeiro disponíveis do menor para o maior preço, depois indisponíveis
+      const orcsOrdenados = [...orcamentos].sort((a,b) => {
+        if (a.indisponivel && !b.indisponivel) return 1;
+        if (!a.indisponivel && b.indisponivel) return -1;
+        return a.preco - b.preco;
+      });
+
+      const vencedor = orcsOrdenados.find(o => !o.indisponivel && o.preco === menorPreco);
+      const comprado = orcamentos.find(o => o.comprado);
+      const demaisOpcoes = orcsOrdenados.filter(o => o !== vencedor);
+
+      const hoje = new Date().toLocaleDateString('pt-BR');
+
+      let msg = `📋 *COMPARAÇÃO DE ORÇAMENTOS*\n`;
+      msg += `🏷️ *Produto:* ${produto.nome}\n`;
+      if (produto.produtoPara) msg += `👤 *Para:* ${produto.produtoPara}\n`;
+      if (produto.descricao) msg += `📝 *Obs:* ${produto.descricao}\n`;
+      msg += `📂 *Categoria:* ${categoria.nome}\n`;
+      msg += `📅 *Data:* ${hoje}\n`;
+      msg += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+      if (comprado) {
+        const fInfo = fornsMap[comprado.fornecedor?.trim().toLowerCase()];
+        msg += `🛍️ *STATUS: COMPRADO ✅*\n`;
+        msg += `• *${comprado.fornecedor}:* ${formatMoney(comprado.preco)}${comprado.quantidade > 1 ? ` (Qtd: ${comprado.quantidade})` : ''}\n`;
+        if (fInfo?.telefone) msg += `  📞 Tel: ${fInfo.telefone}\n`;
+        if (comprado.observacao) msg += `  💬 ${comprado.observacao}\n`;
+        msg += `\n`;
+      }
+
+      if (vencedor && (!comprado || vencedor.id !== comprado.id)) {
+        const fInfo = fornsMap[vencedor.fornecedor?.trim().toLowerCase()];
+        msg += `🥇 *MENOR PREÇO (Melhor Opção):*\n`;
+        msg += `• *${vencedor.fornecedor}:* ${formatMoney(vencedor.preco)}${vencedor.quantidade > 1 ? ` (Qtd: ${vencedor.quantidade})` : ''} 🏆\n`;
+        if (fInfo?.telefone) msg += `  📞 Tel: ${fInfo.telefone}\n`;
+        if (vencedor.observacao) msg += `  💬 ${vencedor.observacao}\n`;
+        msg += `\n`;
+      } else if (vencedor && comprado && vencedor.id === comprado.id) {
+        msg += `🥇 *MENOR PREÇO:* ${vencedor.fornecedor} (foi o vencedor e a compra realizada!)\n\n`;
+      }
+
+      if (demaisOpcoes.length > 0) {
+        msg += `📋 *DEMAIS OPÇÕES COMPARADAS:*\n`;
+        demaisOpcoes.forEach(o => {
+          if (comprado && o.id === comprado.id) return;
+          const fInfo = fornsMap[o.fornecedor?.trim().toLowerCase()];
+          const tel = fInfo?.telefone ? ` (📞 ${fInfo.telefone})` : '';
+          const obs = o.observacao ? ` - _${o.observacao}_` : '';
+          if (o.indisponivel) {
+            msg += `• *${o.fornecedor}:* Indisponível ❌${tel}${obs}\n`;
+          } else {
+            const diff = (menorPreco !== null && o.preco > menorPreco) ? ` (+${formatMoney(o.preco - menorPreco)})` : '';
+            msg += `• *${o.fornecedor}:* ${formatMoney(o.preco)}${o.quantidade > 1 ? ` (Qtd: ${o.quantidade})` : ''}${diff}${tel}${obs}\n`;
+          }
+        });
+        msg += `\n`;
+      }
+
+      msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
+      if (economia > 0) {
+        msg += `📉 *Diferença / Economia Máxima:* ${formatMoney(economia)}\n`;
+      }
+      msg += `💰 *Total de Orçamentos:* ${orcamentos.length}\n`;
+      msg += `🚀 *Gerado pelo OrçaFácil*`;
+
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(msg);
+        }
+      } catch (e) {}
+
+      toast('Abrindo WhatsApp com o comparativo...', 'success');
+      const zapUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+      window.open(zapUrl, '_blank');
     }
 
     async function renderRelatorios() {

@@ -1,6 +1,6 @@
 // Service Worker com versão dinâmica transmitida via URL (?v=X.X.X)
 const urlParams = new URL(self.location.href).searchParams;
-const swVersion = urlParams.get('v') || '2.2.8';
+const swVersion = urlParams.get('v') || '2.2.9';
 const CACHE_NAME = 'orcafacil-v' + swVersion;
 const ASSETS = [
   './',
