@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#0c0c14" id="themeMeta">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="app-version" content="2.3.4">
+  <meta name="app-version" content="2.3.5">
 
   <style>
     :root {
@@ -1379,8 +1379,17 @@
           <div class="modal">
             <div class="modal-header"><div class="modal-title">Novo Orçamento</div><button class="icon-btn" onclick="closeModal('modalOrcamento')">${ICONS.close}</button></div>
             <div class="modal-body">
-              <div class="form-group"><label class="form-label">Fornecedor / Loja</label>
-                <input class="form-input" id="orcFornecedor" placeholder="Ex: Drogaria São Paulo" list="fornList">
+              <div class="form-group">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                  <label class="form-label" style="margin-bottom:0;">Fornecedor / Loja</label>
+                  <span style="font-size:11px;color:var(--text-muted);">${fornecedores.length} cadastrada(s)</span>
+                </div>
+                <select class="form-select" id="orcFornecedorSelect" onchange="selecionarFornecedorDropdown(this, 'orcFornecedor')" style="margin-bottom:8px;">
+                  <option value="">-- Escolha uma loja cadastrada (${fornecedores.length}) --</option>
+                  ${fornecedores.map(f => `<option value="${f.nome.replace(/"/g, '&quot;')}">${f.nome}</option>`).join('')}
+                  <option value="__novo__">✏️ Digitar outra loja / novo fornecedor...</option>
+                </select>
+                <input class="form-input" id="orcFornecedor" placeholder="Ex: Drogaria São Paulo" list="fornList" oninput="sincronizarSelectComInput('orcFornecedorSelect', this.value)">
                 <datalist id="fornList">${fornecedores.map(f => `<option value="${f.nome}">`).join('')}</datalist>
               </div>
               <div class="form-group"><label class="form-label">Preço (R$)</label><input class="form-input" id="orcPreco" type="number" step="0.01" min="0" placeholder="0,00"></div>
@@ -1438,8 +1447,17 @@
           <div class="modal">
             <div class="modal-header"><div class="modal-title">Editar Orçamento</div><button class="icon-btn" onclick="closeModal('modalEditOrcamento')">${ICONS.close}</button></div>
             <div class="modal-body">
-              <div class="form-group"><label class="form-label">Fornecedor / Loja</label>
-                <input class="form-input" id="editOrcFornecedor" list="editFornList">
+              <div class="form-group">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                  <label class="form-label" style="margin-bottom:0;">Fornecedor / Loja</label>
+                  <span style="font-size:11px;color:var(--text-muted);">${fornecedores.length} cadastrada(s)</span>
+                </div>
+                <select class="form-select" id="editOrcFornecedorSelect" onchange="selecionarFornecedorDropdown(this, 'editOrcFornecedor')" style="margin-bottom:8px;">
+                  <option value="">-- Escolha uma loja cadastrada (${fornecedores.length}) --</option>
+                  ${fornecedores.map(f => `<option value="${f.nome.replace(/"/g, '&quot;')}">${f.nome}</option>`).join('')}
+                  <option value="__novo__">✏️ Digitar outra loja / novo fornecedor...</option>
+                </select>
+                <input class="form-input" id="editOrcFornecedor" list="editFornList" oninput="sincronizarSelectComInput('editOrcFornecedorSelect', this.value)">
                 <datalist id="editFornList">${fornecedores.map(f => `<option value="${f.nome}">`).join('')}</datalist>
               </div>
               <div class="form-group"><label class="form-label">Preço (R$)</label><input class="form-input" id="editOrcPreco" type="number" step="0.01" min="0"></div>
@@ -1479,6 +1497,35 @@
       const select = document.getElementById('editProdUnidade');
       const group = document.getElementById('editProdUnidadeManualGroup');
       if (select && group) group.style.display = select.value === '__outro__' ? '' : 'none';
+    }
+
+    function selecionarFornecedorDropdown(selectEl, inputId) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      if (selectEl.value === '__novo__') {
+        input.value = '';
+        input.focus();
+      } else if (selectEl.value) {
+        input.value = selectEl.value;
+      }
+    }
+
+    function sincronizarSelectComInput(selectId, texto) {
+      const sel = document.getElementById(selectId);
+      if (!sel) return;
+      const tLimpo = (texto || '').trim().toLowerCase();
+      let achou = false;
+      for (let i = 0; i < sel.options.length; i++) {
+        const optVal = (sel.options[i].value || '').trim().toLowerCase();
+        if (optVal && optVal !== '__novo__' && optVal === tLimpo) {
+          sel.selectedIndex = i;
+          achou = true;
+          break;
+        }
+      }
+      if (!achou) {
+        sel.value = tLimpo ? '__novo__' : '';
+      }
     }
 
     async function marcarComprado(orcId, prodId, catId) {
@@ -1846,6 +1893,8 @@
     }
     function abrirModalOrcamento(produtoId, categoriaId) {
       document.getElementById('orcFornecedor').value = '';
+      const sel = document.getElementById('orcFornecedorSelect');
+      if (sel) sel.value = '';
       document.getElementById('orcPreco').value = '';
       document.getElementById('orcPreco').disabled = false;
       document.getElementById('orcPreco').placeholder = '0,00';
@@ -1859,6 +1908,7 @@
     function cotarFornecedor(nomeForn, produtoId, categoriaId) {
       abrirModalOrcamento(produtoId, categoriaId);
       document.getElementById('orcFornecedor').value = nomeForn;
+      sincronizarSelectComInput('orcFornecedorSelect', nomeForn);
     }
     async function salvarOrcamento(produtoId, categoriaId) {
       const forn = document.getElementById('orcFornecedor').value.trim();
@@ -1969,6 +2019,7 @@
       const o = (await dbGetAll('orcamentos')).find(item => item.id === id);
       if (!o) return;
       document.getElementById('editOrcFornecedor').value = o.fornecedor;
+      sincronizarSelectComInput('editOrcFornecedorSelect', o.fornecedor);
       document.getElementById('editOrcPreco').value = o.indisponivel ? '' : o.preco;
       document.getElementById('editOrcPreco').disabled = !!o.indisponivel;
       document.getElementById('editOrcPreco').placeholder = o.indisponivel ? 'Indisponível' : '0,00';
