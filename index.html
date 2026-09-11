@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#0c0c14" id="themeMeta">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="app-version" content="2.3.3">
+  <meta name="app-version" content="2.3.4">
 
   <style>
     :root {
@@ -75,15 +75,19 @@
     .section-title a { color: var(--primary-600); font-size: 12px; text-transform: none; letter-spacing: 0; cursor: pointer; font-weight: 700; }
     [data-theme="dark"] .section-title a { color: var(--primary-400); }
 
-    .cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 16px 10px; }
-    .cat-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius-md); padding: 16px 12px; text-align: center; cursor: pointer; transition: all 0.15s ease; position: relative; overflow: hidden; }
-    .cat-card:hover { border-color: var(--primary-500); transform: translateY(-2px); box-shadow: var(--shadow); }
+    .cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0 16px 12px; }
+    .cat-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: 16px; padding: 16px 12px 14px; text-align: center; cursor: pointer; transition: all 0.18s ease; position: relative; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+    [data-theme="dark"] .cat-card { box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+    .cat-card:hover { border-color: var(--primary-400); transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.07); }
     .cat-card:active { transform: translateY(0); }
-    .cat-icon { width: 44px; height: 44px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-size: 22px; position: relative; }
-    .cat-name { font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .cat-count { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
-    .cat-price { font-size: 12px; font-weight: 800; margin-top: 6px; color: var(--primary-600); }
-    [data-theme="dark"] .cat-price { color: var(--primary-400); }
+    .cat-icon-circle { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-size: 20px; transition: transform 0.15s ease; }
+    .cat-card:hover .cat-icon-circle { transform: scale(1.06); }
+    .cat-name { font-size: 14px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -0.2px; }
+    .cat-count { font-size: 11px; color: var(--text-muted); margin-top: 3px; font-weight: 500; }
+    .cat-price { font-size: 12px; font-weight: 700; margin-top: 6px; color: #10b981; }
+    .cat-price.empty { color: var(--text-muted); font-weight: 500; }
+    [data-theme="dark"] .cat-price { color: #34d399; }
+    [data-theme="dark"] .cat-price.empty { color: var(--text-muted); }
 
     .recent-list { padding: 0 16px 10px; }
     .recent-item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); cursor: pointer; transition: all 0.1s; }
@@ -686,13 +690,20 @@
           const catOrcamentos = orcamentos.filter(o => catProdutos.some(p => p.id === o.produtoId));
           const catForns = fornecedores.filter(f => f.categoriaId === cat.id);
           const info = CATEGORIA_ICONS[cat.tipo] || CATEGORIA_ICONS.outros;
-          const menorPreco = catOrcamentos.length > 0 ? Math.min(...catOrcamentos.filter(o => !o.indisponivel).map(o => o.preco)) : null;
+          const precosValidos = catOrcamentos.filter(o => !o.indisponivel).map(o => o.preco);
+          const menorPreco = precosValidos.length > 0 ? Math.min(...precosValidos) : null;
+          const mediaPreco = precosValidos.length > 0 ? (precosValidos.reduce((a,b)=>a+b, 0) / precosValidos.length) : null;
+          const precoTexto = mediaPreco !== null ? 'Média ' + formatMoney(mediaPreco) : (menorPreco !== null ? 'a partir ' + formatMoney(menorPreco) : 'Sem orçamentos');
+          const isSemPreco = mediaPreco === null && menorPreco === null;
+
           html += `
-            <div class="cat-card" data-cat="${cat.id}" onclick="navigate('categoria', ${cat.id})" style="background:${info.bg};border-color:${info.color}40;${catFiltroAtual !== null && catFiltroAtual !== cat.id ? 'display:none;' : ''}">
-              <div class="cat-icon" style="background:transparent;color:${info.color};font-size:28px;margin-bottom:8px">${info.emoji}</div>
-              <div class="cat-name" style="color:${info.color}">${cat.nome}</div>
-              <div class="cat-count" style="color:${info.color};opacity:0.7">${catProdutos.length} prod · ${catForns.length} forn</div>
-              <div class="cat-price" style="color:${info.color}">${menorPreco !== null ? 'a partir ' + formatMoney(menorPreco) : 'Sem orçamentos'}</div>
+            <div class="cat-card" data-cat="${cat.id}" onclick="navigate('categoria', ${cat.id})" style="${catFiltroAtual !== null && catFiltroAtual !== cat.id ? 'display:none;' : ''}">
+              <div class="cat-icon-circle" style="background:${info.bg};color:${info.color};">
+                ${info.emoji}
+              </div>
+              <div class="cat-name">${cat.nome}</div>
+              <div class="cat-count">${catProdutos.length} prod - ${catForns.length} forn</div>
+              <div class="cat-price ${isSemPreco ? 'empty' : ''}">${precoTexto}</div>
             </div>`;
         }
         html += `</div>`;
