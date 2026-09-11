@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#0c0c14" id="themeMeta">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="app-version" content="2.3.5">
+  <meta name="app-version" content="2.3.6">
 
   <style>
     :root {
@@ -1384,13 +1384,23 @@
                   <label class="form-label" style="margin-bottom:0;">Fornecedor / Loja</label>
                   <span style="font-size:11px;color:var(--text-muted);">${fornecedores.length} cadastrada(s)</span>
                 </div>
-                <select class="form-select" id="orcFornecedorSelect" onchange="selecionarFornecedorDropdown(this, 'orcFornecedor')" style="margin-bottom:8px;">
-                  <option value="">-- Escolha uma loja cadastrada (${fornecedores.length}) --</option>
-                  ${fornecedores.map(f => `<option value="${f.nome.replace(/"/g, '&quot;')}">${f.nome}</option>`).join('')}
-                  <option value="__novo__">✏️ Digitar outra loja / novo fornecedor...</option>
-                </select>
-                <input class="form-input" id="orcFornecedor" placeholder="Ex: Drogaria São Paulo" list="fornList" oninput="sincronizarSelectComInput('orcFornecedorSelect', this.value)">
-                <datalist id="fornList">${fornecedores.map(f => `<option value="${f.nome}">`).join('')}</datalist>
+                <!-- Modo Seleção (único campo exibido) -->
+                <div id="orcFornecedorSelectWrap">
+                  <select class="form-select" id="orcFornecedorSelect" onchange="tratarFornecedorChange(this, 'orc')">
+                    <option value="">-- Selecione uma loja cadastrada (${fornecedores.length}) --</option>
+                    ${fornecedores.map(f => `<option value="${f.nome.replace(/"/g, '&quot;')}">${f.nome}</option>`).join('')}
+                    <option value="__novo__">✏️ Digitar outro fornecedor...</option>
+                  </select>
+                </div>
+                <!-- Modo Digitar (substitui no mesmo lugar se escolher digitar outro) -->
+                <div id="orcFornecedorInputWrap" style="display:none;">
+                  <div style="display:flex;gap:6px;">
+                    <input class="form-input" id="orcFornecedor" placeholder="Digite o nome do fornecedor..." style="flex:1;">
+                    <button type="button" class="btn" style="width:auto;padding:8px 12px;font-size:12px;background:var(--surface-raised);border:1.5px solid var(--border);color:var(--text);white-space:nowrap;" onclick="alternarFornecedorModo('orc', 'select')" title="Voltar para a lista de lojas">
+                      📋 Lojas
+                    </button>
+                  </div>
+                </div>
               </div>
               <div class="form-group"><label class="form-label">Preço (R$)</label><input class="form-input" id="orcPreco" type="number" step="0.01" min="0" placeholder="0,00"></div>
               <div class="form-group"><label class="form-label">Quantidade</label><input class="form-input" id="orcQtd" type="number" value="1" min="1"></div>
@@ -1452,13 +1462,23 @@
                   <label class="form-label" style="margin-bottom:0;">Fornecedor / Loja</label>
                   <span style="font-size:11px;color:var(--text-muted);">${fornecedores.length} cadastrada(s)</span>
                 </div>
-                <select class="form-select" id="editOrcFornecedorSelect" onchange="selecionarFornecedorDropdown(this, 'editOrcFornecedor')" style="margin-bottom:8px;">
-                  <option value="">-- Escolha uma loja cadastrada (${fornecedores.length}) --</option>
-                  ${fornecedores.map(f => `<option value="${f.nome.replace(/"/g, '&quot;')}">${f.nome}</option>`).join('')}
-                  <option value="__novo__">✏️ Digitar outra loja / novo fornecedor...</option>
-                </select>
-                <input class="form-input" id="editOrcFornecedor" list="editFornList" oninput="sincronizarSelectComInput('editOrcFornecedorSelect', this.value)">
-                <datalist id="editFornList">${fornecedores.map(f => `<option value="${f.nome}">`).join('')}</datalist>
+                <!-- Modo Seleção (único campo exibido) -->
+                <div id="editOrcFornecedorSelectWrap">
+                  <select class="form-select" id="editOrcFornecedorSelect" onchange="tratarFornecedorChange(this, 'editOrc')">
+                    <option value="">-- Selecione uma loja cadastrada (${fornecedores.length}) --</option>
+                    ${fornecedores.map(f => `<option value="${f.nome.replace(/"/g, '&quot;')}">${f.nome}</option>`).join('')}
+                    <option value="__novo__">✏️ Digitar outro fornecedor...</option>
+                  </select>
+                </div>
+                <!-- Modo Digitar (substitui no mesmo lugar se escolher digitar outro) -->
+                <div id="editOrcFornecedorInputWrap" style="display:none;">
+                  <div style="display:flex;gap:6px;">
+                    <input class="form-input" id="editOrcFornecedor" placeholder="Digite o nome do fornecedor..." style="flex:1;">
+                    <button type="button" class="btn" style="width:auto;padding:8px 12px;font-size:12px;background:var(--surface-raised);border:1.5px solid var(--border);color:var(--text);white-space:nowrap;" onclick="alternarFornecedorModo('editOrc', 'select')" title="Voltar para a lista de lojas">
+                      📋 Lojas
+                    </button>
+                  </div>
+                </div>
               </div>
               <div class="form-group"><label class="form-label">Preço (R$)</label><input class="form-input" id="editOrcPreco" type="number" step="0.01" min="0"></div>
               <div class="form-group"><label class="form-label">Quantidade</label><input class="form-input" id="editOrcQtd" type="number" min="1"></div>
@@ -1499,33 +1519,64 @@
       if (select && group) group.style.display = select.value === '__outro__' ? '' : 'none';
     }
 
-    function selecionarFornecedorDropdown(selectEl, inputId) {
-      const input = document.getElementById(inputId);
-      if (!input) return;
-      if (selectEl.value === '__novo__') {
-        input.value = '';
-        input.focus();
-      } else if (selectEl.value) {
-        input.value = selectEl.value;
+    function alternarFornecedorModo(prefix, modo) {
+      const selWrap = document.getElementById(prefix + 'FornecedorSelectWrap');
+      const inpWrap = document.getElementById(prefix + 'FornecedorInputWrap');
+      const sel = document.getElementById(prefix + 'FornecedorSelect');
+      const inp = document.getElementById(prefix + 'Fornecedor');
+      if (modo === 'input') {
+        if (selWrap) selWrap.style.display = 'none';
+        if (inpWrap) inpWrap.style.display = 'block';
+        if (inp) {
+          if (sel && sel.value && sel.value !== '__novo__') inp.value = sel.value;
+          inp.focus();
+        }
+      } else {
+        if (inpWrap) inpWrap.style.display = 'none';
+        if (selWrap) selWrap.style.display = 'block';
+        if (sel) {
+          if (inp && inp.value.trim()) {
+            const val = inp.value.trim().toUpperCase();
+            let achou = false;
+            for (let i = 0; i < sel.options.length; i++) {
+              if (sel.options[i].value.toUpperCase() === val) {
+                sel.selectedIndex = i;
+                achou = true;
+                break;
+              }
+            }
+            if (!achou) {
+              const opt = document.createElement('option');
+              opt.value = val;
+              opt.textContent = val;
+              const novoOpt = sel.querySelector('option[value="__novo__"]');
+              if (novoOpt) sel.insertBefore(opt, novoOpt);
+              else sel.appendChild(opt);
+              opt.selected = true;
+            }
+          }
+          sel.focus();
+        }
       }
     }
 
-    function sincronizarSelectComInput(selectId, texto) {
-      const sel = document.getElementById(selectId);
-      if (!sel) return;
-      const tLimpo = (texto || '').trim().toLowerCase();
-      let achou = false;
-      for (let i = 0; i < sel.options.length; i++) {
-        const optVal = (sel.options[i].value || '').trim().toLowerCase();
-        if (optVal && optVal !== '__novo__' && optVal === tLimpo) {
-          sel.selectedIndex = i;
-          achou = true;
-          break;
-        }
+    function tratarFornecedorChange(selectEl, prefix) {
+      if (selectEl.value === '__novo__') {
+        const inp = document.getElementById(prefix + 'Fornecedor');
+        if (inp) inp.value = '';
+        alternarFornecedorModo(prefix, 'input');
       }
-      if (!achou) {
-        sel.value = tLimpo ? '__novo__' : '';
+    }
+
+    function obterFornecedorValor(prefix) {
+      const selWrap = document.getElementById(prefix + 'FornecedorSelectWrap');
+      if (selWrap && selWrap.style.display !== 'none') {
+        const sel = document.getElementById(prefix + 'FornecedorSelect');
+        if (!sel || !sel.value || sel.value === '__novo__') return '';
+        return sel.value.trim();
       }
+      const inp = document.getElementById(prefix + 'Fornecedor');
+      return inp ? inp.value.trim() : '';
     }
 
     async function marcarComprado(orcId, prodId, catId) {
@@ -1892,9 +1943,11 @@
       renderCategoria(categoriaId);
     }
     function abrirModalOrcamento(produtoId, categoriaId) {
-      document.getElementById('orcFornecedor').value = '';
+      alternarFornecedorModo('orc', 'select');
       const sel = document.getElementById('orcFornecedorSelect');
       if (sel) sel.value = '';
+      const inp = document.getElementById('orcFornecedor');
+      if (inp) inp.value = '';
       document.getElementById('orcPreco').value = '';
       document.getElementById('orcPreco').disabled = false;
       document.getElementById('orcPreco').placeholder = '0,00';
@@ -1907,18 +1960,36 @@
     }
     function cotarFornecedor(nomeForn, produtoId, categoriaId) {
       abrirModalOrcamento(produtoId, categoriaId);
-      document.getElementById('orcFornecedor').value = nomeForn;
-      sincronizarSelectComInput('orcFornecedorSelect', nomeForn);
+      const sel = document.getElementById('orcFornecedorSelect');
+      if (sel) {
+        let achou = false;
+        for (let i = 0; i < sel.options.length; i++) {
+          if (sel.options[i].value.toLowerCase() === (nomeForn || '').toLowerCase()) {
+            sel.selectedIndex = i;
+            achou = true;
+            break;
+          }
+        }
+        if (!achou && nomeForn) {
+          const opt = document.createElement('option');
+          opt.value = nomeForn;
+          opt.textContent = nomeForn;
+          const novoOpt = sel.querySelector('option[value="__novo__"]');
+          if (novoOpt) sel.insertBefore(opt, novoOpt);
+          else sel.appendChild(opt);
+          opt.selected = true;
+        }
+      }
     }
     async function salvarOrcamento(produtoId, categoriaId) {
-      const forn = document.getElementById('orcFornecedor').value.trim();
+      const forn = obterFornecedorValor('orc');
       const precoRaw = document.getElementById('orcPreco').value;
       const qtd = parseInt(document.getElementById('orcQtd').value) || 1;
       const data = document.getElementById('orcData').value || getHoje();
       const obs = document.getElementById('orcObs').value.trim();
       const indisponivel = document.getElementById('orcIndisponivel').checked;
       const comprado = document.getElementById('orcComprado').checked;
-      if (!forn) { toast('Digite o fornecedor', 'danger'); return; }
+      if (!forn) { toast('Selecione ou digite o fornecedor', 'danger'); return; }
       let preco = 0;
       if (!indisponivel) {
         preco = parseFloat(precoRaw);
@@ -1929,6 +2000,13 @@
         for (const o of orcsExistentes) { o.comprado = false; await dbPut('orcamentos', o); }
       }
       await dbAdd('orcamentos', { produtoId, fornecedor: forn, preco, quantidade: qtd, data, observacao: obs, indisponivel, comprado: indisponivel ? false : comprado, criadoEm: Date.now() });
+
+      // Se for fornecedor novo digitado, inclui automaticamente na categoria para futuras cotações
+      const fornsCat = await dbGetByIndex('fornecedores', 'categoriaId', categoriaId);
+      if (!fornsCat.some(f => f.nome.toLowerCase() === forn.toLowerCase())) {
+        await dbAdd('fornecedores', { categoriaId, nome: forn, telefone: '', endereco: '', criadoEm: Date.now() });
+      }
+
       toast('Orçamento salvo!', 'success');
       closeModal('modalOrcamento');
       renderProduto(categoriaId, produtoId);
@@ -2018,8 +2096,24 @@
     async function editarOrcamento(id, produtoId, categoriaId) {
       const o = (await dbGetAll('orcamentos')).find(item => item.id === id);
       if (!o) return;
-      document.getElementById('editOrcFornecedor').value = o.fornecedor;
-      sincronizarSelectComInput('editOrcFornecedorSelect', o.fornecedor);
+      const sel = document.getElementById('editOrcFornecedorSelect');
+      let achou = false;
+      if (sel) {
+        for (let i = 0; i < sel.options.length; i++) {
+          if (sel.options[i].value.toLowerCase() === (o.fornecedor || '').toLowerCase()) {
+            sel.selectedIndex = i;
+            achou = true;
+            break;
+          }
+        }
+      }
+      if (achou) {
+        alternarFornecedorModo('editOrc', 'select');
+      } else {
+        alternarFornecedorModo('editOrc', 'input');
+        const inp = document.getElementById('editOrcFornecedor');
+        if (inp) inp.value = o.fornecedor || '';
+      }
       document.getElementById('editOrcPreco').value = o.indisponivel ? '' : o.preco;
       document.getElementById('editOrcPreco').disabled = !!o.indisponivel;
       document.getElementById('editOrcPreco').placeholder = o.indisponivel ? 'Indisponível' : '0,00';
@@ -2034,14 +2128,14 @@
     async function atualizarOrcamento(id, produtoId, categoriaId) {
       const o = (await dbGetAll('orcamentos')).find(item => item.id === id);
       if (!o) return;
-      const forn = document.getElementById('editOrcFornecedor').value.trim();
+      const forn = obterFornecedorValor('editOrc');
       const precoRaw = document.getElementById('editOrcPreco').value;
       const qtd = parseInt(document.getElementById('editOrcQtd').value) || 1;
       const data = document.getElementById('editOrcData').value || getHoje();
       const obs = document.getElementById('editOrcObs').value.trim();
       const indisponivel = document.getElementById('editOrcIndisponivel').checked;
       const comprado = document.getElementById('editOrcComprado').checked;
-      if (!forn) { toast('Digite o fornecedor', 'danger'); return; }
+      if (!forn) { toast('Selecione ou digite o fornecedor', 'danger'); return; }
       let preco = 0;
       if (!indisponivel) {
         preco = parseFloat(precoRaw);
@@ -2054,6 +2148,13 @@
       o.fornecedor = forn; o.preco = preco; o.quantidade = qtd; o.data = data; o.observacao = obs;
       o.indisponivel = indisponivel; o.comprado = indisponivel ? false : comprado;
       await dbPut('orcamentos', o);
+
+      // Se for fornecedor novo, cadastra na categoria para aparecer nas próximas
+      const fornsCat = await dbGetByIndex('fornecedores', 'categoriaId', categoriaId);
+      if (!fornsCat.some(f => f.nome.toLowerCase() === forn.toLowerCase())) {
+        await dbAdd('fornecedores', { categoriaId, nome: forn, telefone: '', endereco: '', criadoEm: Date.now() });
+      }
+
       toast('Orçamento atualizado!', 'success');
       closeModal('modalEditOrcamento');
       renderProduto(categoriaId, produtoId);

@@ -1,4 +1,4 @@
-# OrçaFácil v2.3.5 (PWA)
+# OrçaFácil v2.2.7 (PWA)
 
 Aplicativo web completo (Vanilla HTML5, CSS3 e JavaScript) para controle e comparação de orçamentos, cotações e compras.
 
