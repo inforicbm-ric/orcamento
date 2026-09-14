@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#0c0c14" id="themeMeta">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="app-version" content="2.3.4">
+  <meta name="app-version" content="2.3.8">
 
   <style>
     :root {
@@ -530,14 +530,40 @@
       const catObj = catId !== null ? categorias.find(c => c.id === catId) : null;
       const labelCat = catObj ? ` · ${catObj.nome}` : '';
 
-      const filtrados = produtos
+      // Mapeia produtos com data do último orçamento e timestamp para ordenação decrescente
+      const produtosProcessados = produtos
         .filter(p => !p.arquivado && (catId === null || p.categoriaId === catId))
-        .sort((a, b) => b.criadoEm - a.criadoEm)
-        .slice(0, 5);
+        .map(prod => {
+          const prodOrcs = orcamentos.filter(o => o.produtoId === prod.id);
+          let dataUltOrc = '';
+          let timeUltimo = prod.criadoEm || 0;
+
+          if (prodOrcs.length > 0) {
+            // Ordena os orçamentos para encontrar o mais recente pela data (com criadoEm como desempate)
+            const orcsOrdenados = [...prodOrcs].sort((a, b) => {
+              const timeA = a.data ? new Date(a.data + 'T12:00:00').getTime() : (a.criadoEm || 0);
+              const timeB = b.data ? new Date(b.data + 'T12:00:00').getTime() : (b.criadoEm || 0);
+              return timeB - timeA;
+            });
+            const ultOrc = orcsOrdenados[0];
+            timeUltimo = ultOrc.data ? new Date(ultOrc.data + 'T12:00:00').getTime() : (ultOrc.criadoEm || 0);
+            dataUltOrc = ultOrc.data ? formatDate(ultOrc.data) : (ultOrc.criadoEm ? formatDate(new Date(ultOrc.criadoEm).toISOString().split('T')[0]) : '');
+          }
+
+          return { prod, prodOrcs, dataUltOrc, timeUltimo };
+        })
+        // Sempre em ordem decrescente pelo produto com a data de orçamento mais recente
+        .sort((a, b) => {
+          if (b.timeUltimo !== a.timeUltimo) {
+            return b.timeUltimo - a.timeUltimo;
+          }
+          return (b.prod.criadoEm || 0) - (a.prod.criadoEm || 0);
+        })
+        .slice(0, catId !== null ? 20 : 10);
 
       let html = `<div class="section-title">📦 Últimos Produtos<span style="color:var(--primary-500);font-weight:700;">${labelCat}</span></div>`;
 
-      if (filtrados.length === 0) {
+      if (produtosProcessados.length === 0) {
         html += `
           <div style="padding:22px 16px;text-align:center;background:var(--surface);border-radius:var(--radius-md);border:1.5px dashed var(--border);color:var(--text-muted);font-size:13px;margin:0 16px 16px;">
             Nenhum produto cadastrado ${catObj ? 'em <strong>' + catObj.nome + '</strong>' : ''} ainda.
@@ -546,13 +572,15 @@
       }
 
       html += `<div class="recent-list">`;
-      for (let i = 0; i < filtrados.length; i++) {
-        const prod = filtrados[i];
+      for (let i = 0; i < produtosProcessados.length; i++) {
+        const item = produtosProcessados[i];
+        const prod = item.prod;
         const cat = categorias.find(c => c.id === prod.categoriaId);
-        const prodOrcs = orcamentos.filter(o => o.produtoId === prod.id);
+        const prodOrcs = item.prodOrcs;
         const countOrcs = prodOrcs.length;
         const temComprado = prodOrcs.some(o => o.comprado);
-        const menorPreco = countOrcs > 0 ? Math.min(...prodOrcs.filter(o => !o.indisponivel).map(o => o.preco)) : null;
+        const orcsValidos = prodOrcs.filter(o => !o.indisponivel);
+        const menorPreco = orcsValidos.length > 0 ? Math.min(...orcsValidos.map(o => o.preco)) : null;
         let statusBadge = '';
         if (temComprado) {
           statusBadge = '<span style="font-size:10px;font-weight:800;color:var(--success);margin-left:6px;">✅ COMPRADO</span>';
@@ -569,7 +597,12 @@
               <div class="recent-prod">${prod.nome}${prod.produtoPara ? ' · 👤 ' + prod.produtoPara : ''}${statusBadge}</div>
               <div class="recent-loja">${cat ? cat.nome : ''}${prod.descricao ? ' · ' + prod.descricao : ''}</div>
             </div>
-            <div class="recent-price">${menorPreco !== null ? formatMoney(menorPreco) : '—'}</div>
+            <div style="text-align:right;flex-shrink:0;">
+              <div class="recent-price">${menorPreco !== null ? formatMoney(menorPreco) : '—'}</div>
+              <div style="font-size:10.5px;font-weight:600;color:var(--text-muted);margin-top:2px;white-space:nowrap;">
+                ${item.dataUltOrc ? '📅 ' + item.dataUltOrc : '<span style="opacity:0.65;">Sem orç.</span>'}
+              </div>
+            </div>
           </div>`;
       }
       html += `</div>`;
