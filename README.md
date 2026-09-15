@@ -1,6 +1,12 @@
-# OrçaFácil v2.2.7 (PWA)
+# OrçaFácil v2.4.0 (PWA)
 
-Aplicativo web completo (Vanilla HTML5, CSS3 e JavaScript) para controle e comparação de orçamentos, cotações e compras.
+Aplicativo web completo (Vanilla HTML5, CSS3 e JavaScript) para controle e comparação de orçamentos, cotações e compras com sugestão inteligente de genéricos e similares para farmácia.
+
+## Novidades da v2.4.0
+- **Medicamentos Similares e Genéricos**: Busca automática e tags clicáveis ao cadastrar ou editar remédios na categoria Farmácia (com base offline rápida e busca online em APIs públicas).
+- **Dashboard com Ordenação Inteligente**: Lista de produtos recentes ordenada pela data do último orçamento (decrescente).
+- **Cards e Detalhes de Produtos**: Exibição clara dos similares e genéricos cadastrados, inclusão no compartilhamento do WhatsApp e na exportação em Excel (.CSV).
+- **Indicadores de Preço Confiáveis**: Exibição de Menor Preço, Maior Preço e Economia real.
 
 ## Estrutura dos Arquivos
 - **`index.html`**: Toda a interface, estilos e lógica da aplicação (IndexedDB v2).

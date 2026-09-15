@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#0c0c14" id="themeMeta">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="app-version" content="2.3.9">
+  <meta name="app-version" content="2.4.0">
 
   <style>
     :root {
@@ -293,6 +293,48 @@
     .suggest-text { font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; line-height: 1.5; }
     .suggest-actions { display: flex; gap: 8px; }
     .suggest-actions .btn { padding: 10px; font-size: 13px; }
+
+    .sim-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 11px;
+      background: var(--surface-raised);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-pill);
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+      user-select: none;
+    }
+    .sim-tag:hover {
+      background: var(--primary-50);
+      border-color: var(--primary-500);
+      color: var(--primary-700);
+      transform: translateY(-1px);
+    }
+    .sim-tag.active {
+      background: #10b981;
+      border-color: #059669;
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
+    }
+    [data-theme="dark"] .sim-tag:hover {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: var(--primary-400);
+      color: var(--primary-200);
+    }
+    .sim-tag-loading {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 0;
+    }
   </style>
 </head>
 <body>
@@ -401,6 +443,337 @@
     function searchMatches(query, text) {
       const q = normalize(query); const t = normalize(text);
       return q.split(/\s+/).every(part => t.includes(part));
+    }
+
+    // Dicionário Farmacêutico ANVISA Integrado (Medicamentos de Referência e Genéricos/Similares)
+    const MEDICAMENTOS_BASE = {
+      'tramal': ['Cloridrato de Tramadol 50mg', 'Cloridrato de Tramadol 100mg', 'Cloridrato de Tramadol Gotas 100mg/ml'],
+      'tramadol': ['Cloridrato de Tramadol 50mg', 'Cloridrato de Tramadol 100mg', 'Tramal', 'Sylador'],
+      'novalgina': ['Dipirona Monoidratada 500mg', 'Dipirona 1g', 'Dipirona Gotas 500mg/ml', 'Anador'],
+      'anador': ['Dipirona 500mg', 'Dipirona 1g', 'Novalgina'],
+      'dipirona': ['Dipirona 500mg', 'Dipirona 1g', 'Novalgina', 'Anador'],
+      'tylenol': ['Paracetamol 500mg', 'Paracetamol 750mg', 'Paracetamol Gotas 200mg/ml'],
+      'paracetamol': ['Paracetamol 500mg', 'Paracetamol 750mg', 'Tylenol'],
+      'dorflex': ['Dipirona + Citrato de Orfenadrina + Cafeína', 'Dorilax', 'Miorrelax'],
+      'neosaldina': ['Dipirona + Mucato de Isometepteno + Cafeína', 'Neosulida', 'Sedalex'],
+      'cataflam': ['Diclofenaco Potássico 50mg', 'Diclofenaco Gotas', 'Flector'],
+      'voltaren': ['Diclofenaco Sódico 50mg', 'Diclofenaco Sódico 100mg Retard'],
+      'diclofenaco': ['Diclofenaco Potássico 50mg', 'Diclofenaco Sódico 50mg', 'Cataflam', 'Voltaren'],
+      'advil': ['Ibuprofeno 400mg', 'Ibuprofeno 600mg', 'Alivium'],
+      'alivium': ['Ibuprofeno 400mg', 'Ibuprofeno Gotas 100mg/ml', 'Advil'],
+      'ibuprofeno': ['Ibuprofeno 400mg', 'Ibuprofeno 600mg', 'Advil', 'Alivium'],
+      'toragesic': ['Trometamol Cetorolaco 10mg SL', 'Cetorolaco de Trometamina'],
+      'flanax': ['Naproxeno Sódico 550mg', 'Naproxeno 250mg'],
+      'naproxeno': ['Naproxeno 250mg', 'Naproxeno 550mg', 'Flanax'],
+      'celebra': ['Celecoxibe 100mg', 'Celecoxibe 200mg'],
+      'arcoxia': ['Etoricoxibe 60mg', 'Etoricoxibe 90mg', 'Etoricoxibe 120mg'],
+      'tandrilax': ['Carisoprodol + Cafeína + Paracetamol', 'Torsilax', 'Dorilax'],
+      'torsilax': ['Carisoprodol + Cafeína + Paracetamol + Diclofenaco', 'Tandrilax'],
+      'miosan': ['Cloridrato de Ciclobenzaprina 5mg', 'Cloridrato de Ciclobenzaprina 10mg', 'Musculare'],
+      'nisulid': ['Nimesulida 100mg', 'Nimesulida Gotas 50mg/ml', 'Cimelide'],
+      'cimelide': ['Nimesulida 100mg', 'Nisulid', 'Maxsulid'],
+      'nimesulida': ['Nimesulida 100mg', 'Nisulid', 'Cimelide'],
+      'buscopan': ['Butilbrometo de Escopolamina 10mg', 'Escopolamina'],
+      'buscopan composto': ['Butilbrometo de Escopolamina + Dipirona', 'Hioscina Composta'],
+      'luftal': ['Simeticona 40mg', 'Simeticona Gotas 75mg/ml', 'Flagass'],
+      'simeticona': ['Simeticona 40mg', 'Simeticona Gotas', 'Luftal'],
+      'omeprazol': ['Omeprazol 20mg', 'Omeprazol 40mg', 'Losec', 'Peprazol'],
+      'losec': ['Omeprazol 20mg', 'Omeprazol 40mg'],
+      'pantoprazol': ['Pantoprazol 20mg', 'Pantoprazol 40mg', 'Pantozol'],
+      'pantozol': ['Pantoprazol 20mg', 'Pantoprazol 40mg'],
+      'nexium': ['Esomeprazol Magnésico 20mg', 'Esomeprazol Magnésico 40mg', 'Esogex'],
+      'esomeprazol': ['Esomeprazol Magnésico 20mg', 'Esomeprazol Magnésico 40mg', 'Nexium'],
+      'lansoprazol': ['Lansoprazol 30mg', 'Prazol'],
+      'vonau': ['Cloridrato de Ondansetrona 4mg', 'Cloridrato de Ondansetrona 8mg', 'Zofran'],
+      'ondansetrona': ['Cloridrato de Ondansetrona 4mg', 'Cloridrato de Ondansetrona 8mg', 'Vonau Flash'],
+      'plasil': ['Cloridrato de Metoclopramida 10mg', 'Metoclopramida Gotas'],
+      'digesan': ['Bromoprida 10mg', 'Bromoprida Gotas'],
+      'motilium': ['Domperidona 10mg'],
+      'domperidona': ['Domperidona 10mg', 'Motilium'],
+      'amoxil': ['Amoxicilina 500mg', 'Amoxicilina 875mg', 'Amoxicilina Suspensão 250mg/5ml'],
+      'amoxicilina': ['Amoxicilina 500mg', 'Amoxicilina 875mg', 'Amoxil'],
+      'clavulin': ['Amoxicilina + Clavulanato de Potássio 500/125mg', 'Amoxicilina + Clavulanato 875/125mg'],
+      'zitromax': ['Azitromicina 500mg', 'Azitromicina Suspensão'],
+      'azitromicina': ['Azitromicina 500mg', 'Zitromax', 'Azitrotec'],
+      'cipro': ['Cloridrato de Ciprofloxacino 500mg', 'Ciprofloxacino'],
+      'ciprofloxacino': ['Cloridrato de Ciprofloxacino 500mg', 'Cipro', 'Ciprocilin'],
+      'levofloxacino': ['Levofloxacino 500mg', 'Levofloxacino 750mg', 'Tamiram', 'Levaquin'],
+      'keflex': ['Cefalexina 500mg', 'Cefalexina Suspensão'],
+      'cefalexina': ['Cefalexina 500mg', 'Keflex'],
+      'bactrim': ['Sulfametoxazol + Trimetoprima 400/80mg', 'Bactrim F 800/160mg', 'Infectrin'],
+      'anita': ['Nitazoxanida 500mg', 'Azitax'],
+      'ivermectina': ['Ivermectina 6mg', 'Revectina'],
+      'albendazol': ['Albendazol 400mg mastigável', 'Zentel'],
+      'secnidazol': ['Secnidazol 1000mg', 'Secnidal'],
+      'cozaar': ['Losartana Potássica 50mg', 'Losartana Potássica 100mg'],
+      'losartana': ['Losartana Potássica 50mg', 'Losartana Potássica 100mg', 'Cozaar', 'Aradois'],
+      'atenol': ['Atenolol 25mg', 'Atenolol 50mg', 'Atenolol 100mg'],
+      'atenolol': ['Atenolol 25mg', 'Atenolol 50mg', 'Atenol', 'Angipress'],
+      'captopril': ['Captopril 25mg', 'Captopril 50mg', 'Capoten'],
+      'renitec': ['Maleato de Enalapril 10mg', 'Maleato de Enalapril 20mg'],
+      'enalapril': ['Maleato de Enalapril 10mg', 'Maleato de Enalapril 20mg', 'Renitec', 'Vasopril'],
+      'clorana': ['Hidroclorotiazida 25mg', 'Hidroclorotiazida 50mg'],
+      'hidroclorotiazida': ['Hidroclorotiazida 25mg', 'Clorana'],
+      'norvasc': ['Besilato de Anlodipino 5mg', 'Besilato de Anlodipino 10mg'],
+      'anlodipino': ['Besilato de Anlodipino 5mg', 'Besilato de Anlodipino 10mg', 'Norvasc', 'Cordarex'],
+      'seloken': ['Succinato de Metoprolol 25mg', 'Succinato de Metoprolol 50mg', 'Selozok'],
+      'metoprolol': ['Succinato de Metoprolol 25mg', 'Succinato de Metoprolol 50mg', 'Selozok'],
+      'carvedilol': ['Carvedilol 3,125mg', 'Carvedilol 6,25mg', 'Carvedilol 12,5mg', 'Carvedilol 25mg', 'Coreg'],
+      'diuvan': ['Valsartana 80mg', 'Valsartana 160mg', 'Valsartana 320mg'],
+      'valsartana': ['Valsartana 80mg', 'Valsartana 160mg', 'Diuvan', 'Tareg'],
+      'micardis': ['Telmisartana 40mg', 'Telmisartana 80mg'],
+      'olmesartana': ['Olmesartana Medoxomila 20mg', 'Olmesartana Medoxomila 40mg', 'Benicar', 'Olpres'],
+      'lasix': ['Furosemida 40mg'],
+      'furosemida': ['Furosemida 40mg', 'Lasix'],
+      'aldactone': ['Espironolactona 25mg', 'Espironolactona 50mg', 'Espironolactona 100mg'],
+      'espironolactona': ['Espironolactona 25mg', 'Espironolactona 50mg', 'Aldactone'],
+      'zocor': ['Sinvastatina 20mg', 'Sinvastatina 40mg'],
+      'sinvastatina': ['Sinvastatina 10mg', 'Sinvastatina 20mg', 'Sinvastatina 40mg', 'Zocor'],
+      'lipitor': ['Atorvastatina Cálcica 20mg', 'Atorvastatina Cálcica 40mg', 'Citalor'],
+      'atorvastatina': ['Atorvastatina Cálcica 10mg', 'Atorvastatina Cálcica 20mg', 'Atorvastatina 40mg', 'Lipitor'],
+      'crestor': ['Rosuvastatina Cálcica 10mg', 'Rosuvastatina Cálcica 20mg', 'Vivacor'],
+      'rosuvastatina': ['Rosuvastatina Cálcica 10mg', 'Rosuvastatina Cálcica 20mg', 'Crestor'],
+      'glifage': ['Cloridrato de Metformina 500mg', 'Cloridrato de Metformina 850mg', 'Metformina XR 500mg', 'Metformina XR 1000mg'],
+      'metformina': ['Cloridrato de Metformina 500mg', 'Cloridrato de Metformina 850mg', 'Glifage', 'Diaformin'],
+      'diamicron': ['Gliclazida 30mg MR', 'Gliclazida 60mg MR'],
+      'gliclazida': ['Gliclazida 30mg MR', 'Gliclazida 60mg MR', 'Diamicron MR'],
+      'forxiga': ['Dapagliflozina 10mg'],
+      'jardiance': ['Empagliflozina 10mg', 'Empagliflozina 25mg'],
+      'januvia': ['Fosfato de Sitagliptina 50mg', 'Fosfato de Sitagliptina 100mg'],
+      'puran': ['Levotiroxina Sódica 25mcg', 'Levotiroxina Sódica 50mcg', 'Levotiroxina Sódica 75mcg', 'Levotiroxina Sódica 100mcg'],
+      'levotiroxina': ['Levotiroxina Sódica 25mcg', 'Levotiroxina Sódica 50mcg', 'Levotiroxina Sódica 100mcg', 'Puran T4', 'Synthroid', 'Euthyrox'],
+      'synthroid': ['Levotiroxina Sódica 25mcg', 'Levotiroxina Sódica 50mcg', 'Levotiroxina Sódica 100mcg'],
+      'rivotril': ['Clonazepam 0,5mg', 'Clonazepam 2mg', 'Clonazepam Gotas 2,5mg/ml'],
+      'clonazepam': ['Clonazepam 0,5mg', 'Clonazepam 2mg', 'Rivotril'],
+      'prozac': ['Cloridrato de Fluoxetina 20mg', 'Daforin'],
+      'fluoxetina': ['Cloridrato de Fluoxetina 20mg', 'Prozac', 'Daforin'],
+      'lexapro': ['Oxalato de Escitalopram 10mg', 'Oxalato de Escitalopram 20mg', 'Reconter', 'Esc'],
+      'escitalopram': ['Oxalato de Escitalopram 10mg', 'Oxalato de Escitalopram 20mg', 'Lexapro', 'Reconter'],
+      'zoloft': ['Cloridrato de Sertralina 50mg', 'Cloridrato de Sertralina 100mg', 'Assert', 'Serenata'],
+      'sertralina': ['Cloridrato de Sertralina 50mg', 'Cloridrato de Sertralina 100mg', 'Zoloft'],
+      'efexor': ['Cloridrato de Venlafaxina 75mg', 'Cloridrato de Venlafaxina 150mg', 'Venlax'],
+      'venlafaxina': ['Cloridrato de Venlafaxina 75mg', 'Cloridrato de Venlafaxina 150mg', 'Efexor XR'],
+      'pristiq': ['Succinato de Desvenlafaxina 50mg', 'Succinato de Desvenlafaxina 100mg', 'Deller'],
+      'desvenlafaxina': ['Succinato de Desvenlafaxina 50mg', 'Succinato de Desvenlafaxina 100mg', 'Pristiq'],
+      'cymbalta': ['Cloridrato de Duloxetina 30mg', 'Cloridrato de Duloxetina 60mg', 'Velija'],
+      'duloxetina': ['Cloridrato de Duloxetina 30mg', 'Cloridrato de Duloxetina 60mg', 'Cymbalta'],
+      'ritalin': ['Cloridrato de Metilfenidato 10mg', 'Ritalina LA'],
+      'ritalina': ['Cloridrato de Metilfenidato 10mg', 'Concerta'],
+      'metilfenidato': ['Cloridrato de Metilfenidato 10mg', 'Ritalina', 'Concerta'],
+      'venvanse': ['Dimesilato de Lisdexanfetamina 30mg', 'Dimesilato de Lisdexanfetamina 50mg', 'Dimesilato de Lisdexanfetamina 70mg', 'Juneve'],
+      'stilnox': ['Hemitartarato de Zolpidem 10mg', 'Patz SL 5mg'],
+      'zolpidem': ['Hemitartarato de Zolpidem 10mg', 'Hemitartarato de Zolpidem SL 5mg', 'Stilnox', 'Patz'],
+      'frontin': ['Alprazolam 0,25mg', 'Alprazolam 0,5mg', 'Alprazolam 1mg', 'Apraz'],
+      'alprazolam': ['Alprazolam 0,5mg', 'Alprazolam 1mg', 'Frontin', 'Apraz'],
+      'valium': ['Diazepam 5mg', 'Diazepam 10mg'],
+      'diazepam': ['Diazepam 5mg', 'Diazepam 10mg', 'Valium', 'Kiatrium'],
+      'depakote': ['Divalproato de Sódio 250mg', 'Divalproato de Sódio 500mg ER'],
+      'lyrica': ['Pregabalina 75mg', 'Pregabalina 150mg', 'Insit'],
+      'pregabalina': ['Pregabalina 75mg', 'Pregabalina 150mg', 'Lyrica'],
+      'seroquel': ['Hemifumarato de Quetiapina 25mg', 'Hemifumarato de Quetiapina 100mg', 'Quetros'],
+      'quetiapina': ['Hemifumarato de Quetiapina 25mg', 'Hemifumarato de Quetiapina 100mg', 'Seroquel'],
+      'risperdal': ['Risperidona 1mg', 'Risperidona 2mg', 'Zargus'],
+      'risperidona': ['Risperidona 1mg', 'Risperidona 2mg', 'Risperdal'],
+      'aerolin': ['Sulfato de Salbutamol Spray 100mcg', 'Sulfato de Salbutamol Xarope'],
+      'salbutamol': ['Sulfato de Salbutamol Spray 100mcg', 'Aerolin'],
+      'allegra': ['Cloridrato de Fexofenadina 120mg', 'Cloridrato de Fexofenadina 180mg', 'Allexofed'],
+      'fexofenadina': ['Cloridrato de Fexofenadina 120mg', 'Cloridrato de Fexofenadina 180mg', 'Allegra'],
+      'claritin': ['Loratadina 10mg', 'Loratadina Xarope 1mg/ml'],
+      'loratadina': ['Loratadina 10mg', 'Claritin', 'Histadin'],
+      'desalex': ['Desloratadina 5mg', 'Desloratadina Xarope'],
+      'desloratadina': ['Desloratadina 5mg', 'Desalex', 'Sigmaliv'],
+      'prelone': ['Fosfato Sódico de Prednisolona 3mg/ml', 'Prednisolona 20mg'],
+      'prednisolona': ['Fosfato Sódico de Prednisolona', 'Prednisolona 20mg', 'Prelone'],
+      'meticorten': ['Prednisona 5mg', 'Prednisona 20mg'],
+      'prednisona': ['Prednisona 5mg', 'Prednisona 20mg', 'Meticorten'],
+      'decadron': ['Dexametasona 4mg', 'Elixir de Dexametasona 0,1mg/ml'],
+      'dexametasona': ['Dexametasona 4mg', 'Decadron', 'Duo-Decadron'],
+      'roacutan': ['Isotretinoína 10mg', 'Isotretinoína 20mg', 'Isoface'],
+      'isotretinoina': ['Isotretinoína 10mg', 'Isotretinoína 20mg', 'Roacutan'],
+      'viagra': ['Citrato de Sildenafila 50mg', 'Sildenafila 100mg', 'Pramil'],
+      'sildenafila': ['Citrato de Sildenafila 50mg', 'Viagra'],
+      'cialis': ['Tadalafila 5mg uso diário', 'Tadalafila 20mg'],
+      'tadalafila': ['Tadalafila 5mg', 'Tadalafila 20mg', 'Cialis', 'Tada'],
+      'lavitan': ['Multivitamínico A-Z', 'Centrum', 'Supradyn', 'Pharmaton']
+    };
+
+    let timerBuscaRemedio = null;
+
+    function aoDigitarNomeMedicamento(valor, inputSimilaresId, containerTagsId) {
+      if (timerBuscaRemedio) clearTimeout(timerBuscaRemedio);
+      timerBuscaRemedio = setTimeout(() => {
+        buscarSimilaresOnline(valor, inputSimilaresId, containerTagsId);
+      }, 300);
+    }
+
+    async function buscarSimilaresOnline(origemNome, inputSimilaresId, containerTagsId) {
+      const termoRaw = (typeof origemNome === 'string' && document.getElementById(origemNome)) 
+        ? document.getElementById(origemNome).value 
+        : (typeof origemNome === 'string' ? origemNome : '');
+      const termo = termoRaw.trim();
+      const container = document.getElementById(containerTagsId);
+      if (!container) return;
+
+      if (!termo || termo.length < 2) {
+        container.innerHTML = '';
+        return;
+      }
+
+      container.innerHTML = `<div class="sim-tag-loading"><span>⏳</span><span>Buscando genéricos e similares...</span></div>`;
+
+      // 1. Extração e Busca na Base ANVISA Integrada
+      const norm = normalize(termo);
+      const palavras = norm.split(/\s+/).filter(p => p.length >= 2);
+      const dosagemNum = termo.match(/\d+(\,\d+)?/)?.[0] || '';
+
+      const sugestoesSet = new Set();
+
+      // Busca na base local
+      for (const [chave, lista] of Object.entries(MEDICAMENTOS_BASE)) {
+        const chaveNorm = normalize(chave);
+        const matchPalavra = palavras.some(p => chaveNorm.includes(p) || p.includes(chaveNorm));
+        if (matchPalavra) {
+          lista.forEach(s => sugestoesSet.add(s));
+        }
+      }
+
+      // 2. Se online, consultar APIs públicas (RxNav e OpenFDA)
+      let consultouApi = false;
+      if (navigator.onLine) {
+        try {
+          const termoBuscaApi = palavras[0] || termo;
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+          // API 1: RxNav (NLM Drug Information - Suporta CORS abertamente)
+          const pRxNav = fetch(`https://rxnav.nlm.nih.gov/REST/approximateTerm.json?term=${encodeURIComponent(termoBuscaApi)}&maxEntries=4`, {
+            signal: controller.signal
+          }).then(r => r.ok ? r.json() : null).catch(() => null);
+
+          // API 2: OpenFDA Drug Labels (Aberta e pública)
+          const pOpenFda = fetch(`https://api.fda.gov/drug/label.json?search=openfda.brand_name:${encodeURIComponent(termoBuscaApi)}+openfda.generic_name:${encodeURIComponent(termoBuscaApi)}&limit=2`, {
+            signal: controller.signal
+          }).then(r => r.ok ? r.json() : null).catch(() => null);
+
+          const [resRxNav, resOpenFda] = await Promise.all([pRxNav, pOpenFda]);
+          clearTimeout(timeoutId);
+
+          if (resRxNav && resRxNav.approximateGroup && resRxNav.approximateGroup.candidate) {
+            consultouApi = true;
+            const candidates = Array.isArray(resRxNav.approximateGroup.candidate) 
+              ? resRxNav.approximateGroup.candidate 
+              : [resRxNav.approximateGroup.candidate];
+            candidates.forEach(c => {
+              if (c && c.name && !c.name.includes('/')) {
+                let trad = c.name
+                  .replace(/hydrochloride/gi, 'Cloridrato')
+                  .replace(/sodium/gi, 'Sódico')
+                  .replace(/potassium/gi, 'Potássico')
+                  .replace(/maleate/gi, 'Maleato')
+                  .replace(/tartrate/gi, 'Tartarato')
+                  .replace(/tablet/gi, 'Comp.')
+                  .replace(/capsule/gi, 'Cáps.');
+                sugestoesSet.add(trad);
+              }
+            });
+          }
+
+          if (resOpenFda && resOpenFda.results && resOpenFda.results.length > 0) {
+            consultouApi = true;
+            resOpenFda.results.forEach(res => {
+              if (res.openfda && res.openfda.generic_name) {
+                res.openfda.generic_name.forEach(gen => {
+                  if (gen && gen.length > 2) {
+                    let trad = gen.charAt(0).toUpperCase() + gen.slice(1).toLowerCase();
+                    trad = trad.replace(/hydrochloride/gi, 'Cloridrato').replace(/sodium/gi, 'Sódico');
+                    sugestoesSet.add(trad);
+                  }
+                });
+              }
+            });
+          }
+        } catch (e) {
+          // Falha silenciosa de API externa
+        }
+      }
+
+      let sugestoes = Array.from(sugestoesSet);
+
+      // Priorizar sugestões que contêm a dosagem informada (ex: "50" em "TRAMAL 50")
+      if (dosagemNum) {
+        sugestoes.sort((a, b) => {
+          const aHas = a.includes(dosagemNum);
+          const bHas = b.includes(dosagemNum);
+          if (aHas && !bHas) return -1;
+          if (!aHas && bHas) return 1;
+          return 0;
+        });
+      }
+
+      // Limitar a até 7 tags mais relevantes para manter a interface limpa
+      sugestoes = sugestoes.slice(0, 7);
+
+      if (sugestoes.length === 0) {
+        container.innerHTML = `
+          <div style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:6px;padding:2px 0;">
+            <span>ℹ️ Digite o nome do remédio ou princípio ativo para ver sugestões de genéricos.</span>
+          </div>`;
+        return;
+      }
+
+      const inputDestino = document.getElementById(inputSimilaresId);
+      const valorAtual = inputDestino ? inputDestino.value.toLowerCase() : '';
+
+      let tagsHtml = `
+        <div style="width:100%;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <span style="font-size:11px;font-weight:700;color:var(--text-muted);">
+            💡 Toque na tag para adicionar:
+          </span>
+          <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:12px;background:${consultouApi ? 'var(--success-soft)' : 'var(--surface-raised)'};color:${consultouApi ? 'var(--success)' : 'var(--text-muted)'};border:1px solid var(--border);">
+            ${consultouApi ? '🌐 Online + Base ANVISA' : '📦 Base ANVISA'}
+          </span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+      `;
+
+      sugestoes.forEach(sug => {
+        const jaSelecionado = valorAtual.includes(sug.toLowerCase());
+        const escaped = sug.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        tagsHtml += `
+          <button type="button" class="sim-tag ${jaSelecionado ? 'active' : ''}" onclick="selecionarTagSimilar(this, '${escaped}', '${inputSimilaresId}')">
+            ${jaSelecionado ? '✓' : '+'} ${sug}
+          </button>
+        `;
+      });
+
+      tagsHtml += `</div>`;
+      container.innerHTML = tagsHtml;
+    }
+
+    function selecionarTagSimilar(btnEl, tagTexto, inputId) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+
+      const valorAtual = input.value.trim();
+      if (!valorAtual) {
+        input.value = tagTexto;
+        if (btnEl) {
+          btnEl.classList.add('active');
+          btnEl.innerHTML = '✓ ' + tagTexto;
+        }
+      } else {
+        const regex = new RegExp('(^|[,;\\/\\|])\\s*' + tagTexto.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*([,;\\/\\|]|$)', 'i');
+        if (regex.test(valorAtual)) {
+          toast('Este similar já foi adicionado', 'info');
+        } else {
+          input.value = valorAtual + ', ' + tagTexto;
+          if (btnEl) {
+            btnEl.classList.add('active');
+            btnEl.innerHTML = '✓ ' + tagTexto;
+          }
+        }
+      }
+      input.dispatchEvent(new Event('input', { bubbles: true }));
     }
 
     function formatMoney(v) { return 'R$ ' + v.toFixed(2).replace('.', ','); }
@@ -512,7 +885,7 @@
         const lojasConst = ['Leroy Merlin','Casa do Construtor','Telha Norte','MadeiraMadeira','Depósito Central'];
         for (const f of lojasConst) await dbAdd('fornecedores', { categoriaId: construcaoId, nome: f, telefone: '', endereco: '', criadoEm: Date.now() });
 
-        const lavitanId = await dbAdd('produtos', { categoriaId: farmaciaId, nome: 'LAVITAN', descricao: 'Suplemento vitamínico - 60 cápsulas', unidade: 'caixa', criadoEm: Date.now() });
+        const lavitanId = await dbAdd('produtos', { categoriaId: farmaciaId, nome: 'LAVITAN', descricao: 'Suplemento vitamínico - 60 cápsulas', unidade: 'caixa', similares: 'Multivitamínico A-Z, Centrum', criadoEm: Date.now() });
         const precos = [45.90,42.50,48.00,44.90,39.90,46.50,41.00,43.90,47.50,40.00,49.90,38.50,44.00,42.00,45.00];
         for (let i=0;i<farmacias.length;i++) {
           await dbAdd('orcamentos', { produtoId: lavitanId, fornecedor: farmacias[i], preco: precos[i], quantidade: 1, observacao: '', data: getHoje(), indisponivel: false, comprado: false, criadoEm: Date.now() });
@@ -595,7 +968,7 @@
             <div class="recent-rank" style="background:${info.bg};color:${info.color};border:none;font-size:16px;">${info.emoji}</div>
             <div class="recent-info">
               <div class="recent-prod">${prod.nome}${prod.produtoPara ? ' · 👤 ' + prod.produtoPara : ''}${statusBadge}</div>
-              <div class="recent-loja">${cat ? cat.nome : ''}${prod.descricao ? ' · ' + prod.descricao : ''}</div>
+              <div class="recent-loja">${cat ? cat.nome : ''}${prod.similares ? ' · 💊 ' + prod.similares : ''}${prod.descricao ? ' · ' + prod.descricao : ''}</div>
             </div>
             <div style="text-align:right;flex-shrink:0;">
               <div class="recent-price">${menorPreco !== null ? formatMoney(menorPreco) : '—'}</div>
@@ -850,7 +1223,7 @@
 
       let results = produtos.filter(p => {
         if (p.arquivado && !incluirArch) return false;
-        return searchMatches(query, p.nome) || (p.descricao && searchMatches(query, p.descricao)) || (p.produtoPara && searchMatches(query, p.produtoPara));
+        return searchMatches(query, p.nome) || (p.descricao && searchMatches(query, p.descricao)) || (p.produtoPara && searchMatches(query, p.produtoPara)) || (p.similares && searchMatches(query, p.similares));
       });
 
       const orcsMatch = orcamentos.filter(o => searchMatches(query, o.fornecedor));
@@ -903,7 +1276,7 @@
             <div class="search-result-icon" style="width:40px;height:40px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;background:${info.bg};color:${info.color}">${info.emoji}</div>
             <div class="search-result-info" style="flex:1;min-width:0;">
               <div class="search-result-name" style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);">${prod.nome}${prod.arquivado ? ' <span style="font-size:9px;font-weight:800;color:var(--warning);background:var(--warning-soft);padding:2px 6px;border-radius:var(--radius-pill);">📁 ARQUIVADO</span>' : ''}${prod._badgeDisplay}</div>
-              <div class="search-result-meta" style="font-size:11px;color:var(--text-muted);">${cat ? cat.nome : ''}${prod.descricao ? ' · ' + prod.descricao : ''}${prod.produtoPara ? ' · 👤 ' + prod.produtoPara : ''}${fornMatch ? ' · 🏪 ' + fornMatch.fornecedor : ''}${prod._dataUltOrc ? ' · 📅 ' + prod._dataUltOrc : ''}</div>
+              <div class="search-result-meta" style="font-size:11px;color:var(--text-muted);">${cat ? cat.nome : ''}${prod.similares ? ' · 💊 ' + prod.similares : ''}${prod.descricao ? ' · ' + prod.descricao : ''}${prod.produtoPara ? ' · 👤 ' + prod.produtoPara : ''}${fornMatch ? ' · 🏪 ' + fornMatch.fornecedor : ''}${prod._dataUltOrc ? ' · 📅 ' + prod._dataUltOrc : ''}</div>
             </div>
             ${prod._precoDisplay !== null ? `<div class="search-result-price" style="font-size:14px;font-weight:800;color:var(--primary-600);white-space:nowrap;">${formatMoney(prod._precoDisplay)}</div>` : ''}
           </div>`;
@@ -927,6 +1300,7 @@
       const info = CATEGORIA_ICONS[categoria.tipo] || CATEGORIA_ICONS.outros;
       const tab = state.tab || 'produtos';
       const filtroAtivo = state.produtoFiltro || 'todos';
+      const isFarmacia = categoria.tipo === 'farmacia' || (categoria.nome && categoria.nome.toLowerCase().includes('farm'));
 
       let html = `
         <div class="cat-header">
@@ -1031,7 +1405,7 @@
                   ${state.selecao ? '<div class="select-check" style="margin-right:10px;">✓</div>' : ''}
                   <div style="flex:1;min-width:0">
                     <div class="prod-card-title">${prod.nome}${badgeStatus}</div>
-                    <div class="prod-card-meta">${prod.descricao || ''}${prod.produtoPara ? ' · 👤 ' + prod.produtoPara : ''}</div>
+                    <div class="prod-card-meta">${prod.similares ? '<span style="color:#ef4444;font-weight:700;">💊 ' + prod.similares + '</span>' + (prod.descricao ? ' · ' : '') : ''}${prod.descricao || ''}${prod.produtoPara ? ' · 👤 ' + prod.produtoPara : ''}</div>
                   </div>
                   <div class="card-actions ${prod.arquivado ? 'always' : ''}">
                     <button class="icon-btn" onclick="event.stopPropagation(); toggleArquivarProduto(${prod.id}, ${categoria.id})" title="${prod.arquivado ? 'Desarquivar' : 'Arquivar'}">${prod.arquivado ? '📤' : '📁'}</button>
@@ -1060,8 +1434,23 @@
             <div class="modal">
               <div class="modal-header"><div class="modal-title">Novo Produto</div><button class="icon-btn" onclick="closeModal('modalProduto')">${ICONS.close}</button></div>
               <div class="modal-body">
-                <div class="form-group"><label class="form-label">Nome do Produto</label><input class="form-input" id="prodNome" placeholder="Ex: LAVITAN"></div>
-                <div class="form-group"><label class="form-label">Descrição</label><input class="form-input" id="prodDesc" placeholder="Ex: Suplemento vitamínico - 60 cápsulas"></div>
+                <div class="form-group">
+                  <label class="form-label">Nome do Produto</label>
+                  <input class="form-input" id="prodNome" placeholder="${isFarmacia ? 'Ex: TRAMAL 50 ou NOVALGINA' : 'Ex: Cimento CP-II'}" ${isFarmacia ? `oninput="aoDigitarNomeMedicamento(this.value, 'prodSimilares', 'prodSimilaresTags')"` : ''} autocomplete="off">
+                </div>
+                ${isFarmacia ? `
+                <div class="form-group" id="prodSimilaresGroup">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                    <label class="form-label" style="margin-bottom:0;">💊 Genéricos / Similares (opcional)</label>
+                    <button type="button" class="btn" style="padding:2px 8px;font-size:11px;background:var(--surface-raised);color:var(--primary-600);border:1px solid var(--border);border-radius:12px;cursor:pointer;" onclick="buscarSimilaresOnline('prodNome', 'prodSimilares', 'prodSimilaresTags')">
+                      🔍 Buscar sugestões
+                    </button>
+                  </div>
+                  <input class="form-input" id="prodSimilares" placeholder="Ex: Cloridrato de Tramadol 50mg" autocomplete="off">
+                  <div id="prodSimilaresTags" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;"></div>
+                </div>
+                ` : `<input type="hidden" id="prodSimilares" value="">`}
+                <div class="form-group"><label class="form-label">Descrição</label><input class="form-input" id="prodDesc" placeholder="${isFarmacia ? 'Ex: Gotas, cápsulas ou comprimidos' : 'Ex: Saco 50kg'}"></div>
                 <div class="form-group"><label class="form-label">Produto Para (opcional)</label><input class="form-input" id="prodPara" placeholder="Ex: MARIA, JOÃO, CASA"></div>
                 <div class="form-group"><label class="form-label">Unidade</label>
                   <select class="form-select" id="prodUnidade" onchange="toggleUnidadeManual()">
@@ -1299,6 +1688,7 @@
       if (!produto || !categoria) { navigate('home'); return; }
       const orcamentos = await dbGetByIndex('orcamentos', 'produtoId', produtoId);
       const fornecedores = await dbGetByIndex('fornecedores', 'categoriaId', categoriaId);
+      const isFarmacia = categoria.tipo === 'farmacia' || (categoria.nome && categoria.nome.toLowerCase().includes('farm'));
       const orcsValidos = orcamentos.filter(o => !o.indisponivel);
       const precos = orcsValidos.map(o => o.preco);
       const menorPreco = precos.length > 0 ? Math.min(...precos) : null;
@@ -1328,6 +1718,12 @@
           </div>
           <div class="cat-header-title">${produto.nome}</div>
           <div class="cat-header-sub">${produto.descricao || ''}${produto.produtoPara ? ' · 👤 ' + produto.produtoPara : ''} · ${produto.unidade}</div>
+          ${produto.similares ? `
+            <div style="margin-top:8px;display:inline-flex;align-items:center;gap:6px;background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.28);padding:4px 12px;border-radius:16px;font-size:12px;font-weight:700;">
+              <span>💊 Similares / Genéricos:</span>
+              <span style="color:var(--text);font-weight:600;">${produto.similares}</span>
+            </div>
+          ` : ''}
         </div>
         <div class="breadcrumb">
           <a onclick="navigate('home')">Início</a><span class="breadcrumb-sep">›</span>
@@ -1454,7 +1850,22 @@
           <div class="modal">
             <div class="modal-header"><div class="modal-title">Editar Produto</div><button class="icon-btn" onclick="closeModal('modalEditProduto')">${ICONS.close}</button></div>
             <div class="modal-body">
-              <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="editProdNome" value="${produto.nome}"></div>
+              <div class="form-group">
+                <label class="form-label">Nome</label>
+                <input class="form-input" id="editProdNome" value="${produto.nome}" ${isFarmacia ? `oninput="aoDigitarNomeMedicamento(this.value, 'editProdSimilares', 'editProdSimilaresTags')"` : ''} autocomplete="off">
+              </div>
+              ${isFarmacia ? `
+              <div class="form-group" id="editProdSimilaresGroup">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                  <label class="form-label" style="margin-bottom:0;">💊 Genéricos / Similares (opcional)</label>
+                  <button type="button" class="btn" style="padding:2px 8px;font-size:11px;background:var(--surface-raised);color:var(--primary-600);border:1px solid var(--border);border-radius:12px;cursor:pointer;" onclick="buscarSimilaresOnline('editProdNome', 'editProdSimilares', 'editProdSimilaresTags')">
+                    🔍 Buscar sugestões
+                  </button>
+                </div>
+                <input class="form-input" id="editProdSimilares" value="${produto.similares || ''}" placeholder="Ex: Cloridrato de Tramadol 50mg" autocomplete="off">
+                <div id="editProdSimilaresTags" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;"></div>
+              </div>
+              ` : `<input type="hidden" id="editProdSimilares" value="${produto.similares || ''}">`}
               <div class="form-group"><label class="form-label">Descrição</label><input class="form-input" id="editProdDesc" value="${produto.descricao || ''}"></div>
               <div class="form-group"><label class="form-label">Produto Para (opcional)</label><input class="form-input" id="editProdPara" value="${produto.produtoPara || ''}"></div>
               <div class="form-group"><label class="form-label">Unidade</label>
@@ -1667,6 +2078,7 @@
 
       let msg = `📋 *COMPARAÇÃO DE ORÇAMENTOS*\n`;
       msg += `🏷️ *Produto:* ${produto.nome}\n`;
+      if (produto.similares) msg += `💊 *Similares/Genéricos:* ${produto.similares}\n`;
       if (produto.produtoPara) msg += `👤 *Para:* ${produto.produtoPara}\n`;
       if (produto.descricao) msg += `📝 *Obs:* ${produto.descricao}\n`;
       msg += `📂 *Categoria:* ${categoria.nome}\n`;
@@ -1870,6 +2282,13 @@
               <div class="settings-arrow">${ICONS.arrowRight}</div>
             </div>
             <input type="file" id="importFile" accept=".json" style="display:none" onchange="importarBackup(event)">
+            <a href="./orcafacil.zip" download="orcafacil.zip" style="text-decoration:none;color:inherit;display:block;">
+              <div class="settings-item">
+                <div class="settings-icon" style="color:#6366f1;">📦</div>
+                <div class="settings-info"><div class="settings-name">Baixar Pacote Completo (.ZIP)</div><div class="settings-desc">Código pronto para GitHub Pages (v${APP_VERSION})</div></div>
+                <div class="settings-arrow">${ICONS.arrowRight}</div>
+              </div>
+            </a>
             <div class="settings-item" onclick="confirmarLimparDados()">
               <div class="settings-icon" style="color:var(--danger)">${ICONS.trash}</div>
               <div class="settings-info"><div class="settings-name" style="color:var(--danger)">Limpar Todos os Dados</div><div class="settings-desc">Apagar categorias, produtos e orçamentos</div></div>
@@ -1952,6 +2371,8 @@
       const nome = document.getElementById('prodNome').value.trim();
       const desc = document.getElementById('prodDesc').value.trim();
       const para = document.getElementById('prodPara').value.trim();
+      const simInput = document.getElementById('prodSimilares');
+      const similares = simInput ? simInput.value.trim() : '';
       const unSel = document.getElementById('prodUnidade').value;
       let unidade = unSel;
       if (unSel === '__outro__') {
@@ -1960,7 +2381,7 @@
         unidade = manual;
       }
       if (!nome) { toast('Digite o nome do produto', 'danger'); return; }
-      await dbAdd('produtos', { categoriaId, nome, descricao: desc, produtoPara: para, unidade, criadoEm: Date.now() });
+      await dbAdd('produtos', { categoriaId, nome, descricao: desc, produtoPara: para, unidade, similares, criadoEm: Date.now() });
       toast('Produto adicionado!', 'success');
       closeModal('modalProduto');
       renderCategoria(categoriaId);
@@ -2076,6 +2497,10 @@
       prod.nome = document.getElementById('editProdNome').value.trim();
       prod.descricao = document.getElementById('editProdDesc').value.trim();
       prod.produtoPara = document.getElementById('editProdPara').value.trim();
+      const simInput = document.getElementById('editProdSimilares');
+      if (simInput) {
+        prod.similares = simInput.value.trim();
+      }
       const unSel = document.getElementById('editProdUnidade').value;
       if (unSel === '__outro__') {
         const manual = document.getElementById('editProdUnidadeManual').value.trim();
@@ -2235,6 +2660,7 @@
         const cabecalho = [
           'Categoria',
           'Produto',
+          'Similares / Genéricos',
           'Para Quem / Destinatário',
           'Unidade Medida',
           'Status do Produto',
@@ -2275,6 +2701,7 @@
               const linha = [
                 cat.nome,
                 prod.nome,
+                prod.similares || '',
                 prod.produtoPara || '',
                 prod.unidade || 'un',
                 prod.arquivado ? 'Arquivado' : 'Sem orçamentos',
@@ -2315,6 +2742,7 @@
                 const linha = [
                   cat.nome,
                   prod.nome,
+                  prod.similares || '',
                   prod.produtoPara || '',
                   prod.unidade || 'un',
                   prod.arquivado ? 'Arquivado' : (orc.comprado ? 'Comprado' : 'Em cotação'),
