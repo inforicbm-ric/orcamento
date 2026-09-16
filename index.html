@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#0c0c14" id="themeMeta">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="app-version" content="2.4.0">
+  <meta name="app-version" content="2.4.1">
 
   <style>
     :root {
@@ -242,6 +242,10 @@
     .search-result-price { font-size: 13px; font-weight: 800; color: var(--primary-600); white-space: nowrap; }
     [data-theme="dark"] .search-result-price { color: var(--primary-400); }
     .search-empty { padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px; }
+    .orc-total-box { display: flex; align-items: center; justify-content: space-between; background: var(--surface-raised); border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; margin-top: 4px; }
+    .orc-total-label { font-size: 12px; font-weight: 700; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+    .orc-total-value { font-size: 16px; font-weight: 800; color: var(--primary-600); }
+    [data-theme="dark"] .orc-total-value { color: var(--primary-400); }
 
     .prod-header { background: linear-gradient(135deg, var(--primary-900) 0%, var(--primary-700) 100%); color: #fff; padding: 14px 16px 18px; }
 
@@ -1777,7 +1781,10 @@
                   ${diffEco ? ` · <strong style="color:var(--success)">${diffEco}</strong>` : ''}
                 </div>
               </div>
-              <div class="orc-preco ${isBest ? 'best' : ''}">${formatOrcPreco(o)}</div>
+              <div class="orc-preco ${isBest ? 'best' : ''}">
+                ${formatOrcPreco(o)}
+                ${(!isIndisp && o.quantidade > 1) ? `<div style="font-size:10px;font-weight:600;color:var(--text-muted);text-align:right;">${formatMoney(o.preco / o.quantidade)} un</div>` : ''}
+              </div>
               <div class="orc-actions">
                 <button class="icon-btn" onclick="marcarComprado(${o.id}, ${produto.id}, ${categoria.id})" title="${isComprado ? 'Desmarcar compra' : 'Marcar como comprado'}" style="${isComprado ? 'background:var(--success);color:#fff;border-color:var(--success);' : ''}">✓</button>
                 <button class="icon-btn" onclick="editarOrcamento(${o.id}, ${produto.id}, ${categoria.id})" title="Editar">${ICONS.edit}</button>
@@ -1831,8 +1838,14 @@
                   </div>
                 </div>
               </div>
-              <div class="form-group"><label class="form-label">Preço (R$)</label><input class="form-input" id="orcPreco" type="number" step="0.01" min="0" placeholder="0,00"></div>
-              <div class="form-group"><label class="form-label">Quantidade</label><input class="form-input" id="orcQtd" type="number" value="1" min="1"></div>
+              <div class="form-group"><label class="form-label">Preço Unitário (R$)</label><input class="form-input" id="orcPreco" type="number" step="0.01" min="0" placeholder="0,00" oninput="calcularTotalModal('orc')"></div>
+              <div class="form-group"><label class="form-label">Quantidade</label><input class="form-input" id="orcQtd" type="number" value="1" min="1" oninput="calcularTotalModal('orc')"></div>
+              <div class="form-group" id="orcTotalWrap" style="display:none;">
+                <div class="orc-total-box">
+                  <span class="orc-total-label">💰 Total calculado (<span id="orcTotalQtdTexto">1 un</span>):</span>
+                  <span class="orc-total-value" id="orcTotalPreview">R$ 0,00</span>
+                </div>
+              </div>
               <div class="form-group"><label class="form-label">Data</label><input class="form-input" id="orcData" type="date" value="${getHoje()}"></div>
               <div class="form-group"><label class="form-label">Observações (opcional)</label><input class="form-input" id="orcObs" placeholder="Ex: À vista com desconto, frete grátis..."></div>
               <div class="form-group">
@@ -1924,8 +1937,14 @@
                   </div>
                 </div>
               </div>
-              <div class="form-group"><label class="form-label">Preço (R$)</label><input class="form-input" id="editOrcPreco" type="number" step="0.01" min="0"></div>
-              <div class="form-group"><label class="form-label">Quantidade</label><input class="form-input" id="editOrcQtd" type="number" min="1"></div>
+              <div class="form-group"><label class="form-label">Preço Unitário (R$)</label><input class="form-input" id="editOrcPreco" type="number" step="0.01" min="0" oninput="calcularTotalModal('editOrc')"></div>
+              <div class="form-group"><label class="form-label">Quantidade</label><input class="form-input" id="editOrcQtd" type="number" min="1" oninput="calcularTotalModal('editOrc')"></div>
+              <div class="form-group" id="editOrcTotalWrap" style="display:none;">
+                <div class="orc-total-box">
+                  <span class="orc-total-label">💰 Total calculado (<span id="editOrcTotalQtdTexto">1 un</span>):</span>
+                  <span class="orc-total-value" id="editOrcTotalPreview">R$ 0,00</span>
+                </div>
+              </div>
               <div class="form-group"><label class="form-label">Data</label><input class="form-input" id="editOrcData" type="date"></div>
               <div class="form-group"><label class="form-label">Observações (opcional)</label><input class="form-input" id="editOrcObs"></div>
               <div class="form-group">
@@ -1942,15 +1961,45 @@
       document.getElementById('app').innerHTML = html;
     }
 
+    function calcularTotalModal(prefix) {
+      const precoInput = document.getElementById(prefix === 'editOrc' ? 'editOrcPreco' : 'orcPreco');
+      const qtdInput = document.getElementById(prefix === 'editOrc' ? 'editOrcQtd' : 'orcQtd');
+      const totalWrap = document.getElementById(prefix === 'editOrc' ? 'editOrcTotalWrap' : 'orcTotalWrap');
+      const totalPreview = document.getElementById(prefix === 'editOrc' ? 'editOrcTotalPreview' : 'orcTotalPreview');
+      const totalQtdTexto = document.getElementById(prefix === 'editOrc' ? 'editOrcTotalQtdTexto' : 'orcTotalQtdTexto');
+      const indispCb = document.getElementById(prefix === 'editOrc' ? 'editOrcIndisponivel' : 'orcIndisponivel');
+
+      if (!precoInput || !qtdInput || !totalWrap || !totalPreview) return;
+
+      if (indispCb && indispCb.checked) {
+        totalWrap.style.display = 'none';
+        return;
+      }
+
+      const precoUnit = parseFloat(precoInput.value);
+      const qtd = parseInt(qtdInput.value) || 1;
+
+      if (!isNaN(precoUnit) && precoUnit >= 0) {
+        const total = precoUnit * qtd;
+        if (totalQtdTexto) totalQtdTexto.textContent = `${qtd} un`;
+        totalPreview.textContent = formatMoney(total);
+        totalWrap.style.display = 'block';
+      } else {
+        totalWrap.style.display = 'none';
+      }
+    }
+
     function togglePrecoIndisponivel(cb) {
       const precoInput = document.getElementById('orcPreco');
       if (cb.checked) { precoInput.value = ''; precoInput.disabled = true; precoInput.placeholder = 'Indisponível'; }
       else { precoInput.disabled = false; precoInput.placeholder = '0,00'; }
+      calcularTotalModal('orc');
     }
     function toggleEditPrecoIndisponivel(cb) {
       const precoInput = document.getElementById('editOrcPreco');
       if (cb.checked) { precoInput.value = ''; precoInput.disabled = true; precoInput.placeholder = 'Indisponível'; }
       else { precoInput.disabled = false; precoInput.placeholder = '0,00'; }
+      calcularTotalModal('editOrc');
     }
     function toggleUnidadeManual() {
       const select = document.getElementById('prodUnidade');
@@ -2410,6 +2459,7 @@
       document.getElementById('orcObs').value = '';
       document.getElementById('orcIndisponivel').checked = false;
       document.getElementById('orcComprado').checked = false;
+      calcularTotalModal('orc');
       openModal('modalOrcamento');
     }
     function cotarFornecedor(nomeForn, produtoId, categoriaId) {
@@ -2444,16 +2494,18 @@
       const indisponivel = document.getElementById('orcIndisponivel').checked;
       const comprado = document.getElementById('orcComprado').checked;
       if (!forn) { toast('Selecione ou digite o fornecedor', 'danger'); return; }
-      let preco = 0;
+      let precoUnitario = 0;
+      let precoTotal = 0;
       if (!indisponivel) {
-        preco = parseFloat(precoRaw);
-        if (isNaN(preco) || preco < 0) { toast('Digite um preço válido', 'danger'); return; }
+        precoUnitario = parseFloat(precoRaw);
+        if (isNaN(precoUnitario) || precoUnitario < 0) { toast('Digite um preço válido', 'danger'); return; }
+        precoTotal = precoUnitario * qtd;
       }
       if (comprado) {
         const orcsExistentes = await dbGetByIndex('orcamentos', 'produtoId', produtoId);
         for (const o of orcsExistentes) { o.comprado = false; await dbPut('orcamentos', o); }
       }
-      await dbAdd('orcamentos', { produtoId, fornecedor: forn, preco, quantidade: qtd, data, observacao: obs, indisponivel, comprado: indisponivel ? false : comprado, criadoEm: Date.now() });
+      await dbAdd('orcamentos', { produtoId, fornecedor: forn, preco: precoTotal, precoUnitario, quantidade: qtd, data, observacao: obs, indisponivel, comprado: indisponivel ? false : comprado, criadoEm: Date.now() });
 
       // Se for fornecedor novo digitado, inclui automaticamente na categoria para futuras cotações
       const fornsCat = await dbGetByIndex('fornecedores', 'categoriaId', categoriaId);
@@ -2572,14 +2624,16 @@
         const inp = document.getElementById('editOrcFornecedor');
         if (inp) inp.value = o.fornecedor || '';
       }
-      document.getElementById('editOrcPreco').value = o.indisponivel ? '' : o.preco;
+      const precoUnit = (o.precoUnitario !== undefined && o.precoUnitario !== null) ? o.precoUnitario : (!o.indisponivel && o.quantidade > 0 ? (o.preco / o.quantidade) : o.preco);
+      document.getElementById('editOrcPreco').value = o.indisponivel ? '' : (precoUnit || '');
       document.getElementById('editOrcPreco').disabled = !!o.indisponivel;
       document.getElementById('editOrcPreco').placeholder = o.indisponivel ? 'Indisponível' : '0,00';
-      document.getElementById('editOrcQtd').value = o.quantidade;
+      document.getElementById('editOrcQtd').value = o.quantidade || 1;
       document.getElementById('editOrcData').value = o.data;
       document.getElementById('editOrcObs').value = o.observacao || '';
       document.getElementById('editOrcIndisponivel').checked = !!o.indisponivel;
       document.getElementById('editOrcComprado').checked = !!o.comprado;
+      calcularTotalModal('editOrc');
       document.getElementById('btnSalvarEditOrc').onclick = () => atualizarOrcamento(id, produtoId, categoriaId);
       openModal('modalEditOrcamento');
     }
@@ -2594,16 +2648,18 @@
       const indisponivel = document.getElementById('editOrcIndisponivel').checked;
       const comprado = document.getElementById('editOrcComprado').checked;
       if (!forn) { toast('Selecione ou digite o fornecedor', 'danger'); return; }
-      let preco = 0;
+      let precoUnitario = 0;
+      let precoTotal = 0;
       if (!indisponivel) {
-        preco = parseFloat(precoRaw);
-        if (isNaN(preco) || preco < 0) { toast('Digite um preço válido', 'danger'); return; }
+        precoUnitario = parseFloat(precoRaw);
+        if (isNaN(precoUnitario) || precoUnitario < 0) { toast('Digite um preço válido', 'danger'); return; }
+        precoTotal = precoUnitario * qtd;
       }
       if (comprado && !o.comprado) {
         const orcs = await dbGetByIndex('orcamentos', 'produtoId', produtoId);
         for (const item of orcs) { item.comprado = false; await dbPut('orcamentos', item); }
       }
-      o.fornecedor = forn; o.preco = preco; o.quantidade = qtd; o.data = data; o.observacao = obs;
+      o.fornecedor = forn; o.preco = precoTotal; o.precoUnitario = precoUnitario; o.quantidade = qtd; o.data = data; o.observacao = obs;
       o.indisponivel = indisponivel; o.comprado = indisponivel ? false : comprado;
       await dbPut('orcamentos', o);
 
@@ -2737,7 +2793,8 @@
                   ? 'SIM (Menor Preço)' 
                   : (orc.indisponivel ? 'Indisponível' : `NÃO${diferencaVencedor}`);
 
-                const totalItem = !orc.indisponivel ? (orc.preco * (orc.quantidade || 1)) : 0;
+                const precoUnit = (orc.precoUnitario !== undefined && orc.precoUnitario !== null) ? orc.precoUnitario : (!orc.indisponivel && orc.quantidade > 0 ? (orc.preco / orc.quantidade) : orc.preco);
+                const totalItem = !orc.indisponivel ? orc.preco : 0;
 
                 const linha = [
                   cat.nome,
@@ -2749,7 +2806,7 @@
                   orc.fornecedor || 'Não informado',
                   fInfo?.telefone || '',
                   fInfo?.endereco || '',
-                  orc.indisponivel ? 'Indisponível' : formatPrecoCsv(orc.preco),
+                  orc.indisponivel ? 'Indisponível' : formatPrecoCsv(precoUnit),
                   orc.quantidade || 1,
                   orc.indisponivel ? '0,00' : formatPrecoCsv(totalItem),
                   menorPrecoTexto,
