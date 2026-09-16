@@ -10,6 +10,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="app-version" content="2.4.1">
+  <!-- Supabase JS Client v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
     :root {
@@ -247,6 +249,30 @@
     .orc-total-value { font-size: 16px; font-weight: 800; color: var(--primary-600); }
     [data-theme="dark"] .orc-total-value { color: var(--primary-400); }
 
+    /* Estilos da Tela de Autenticação Supabase */
+    .auth-container { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; padding: 24px 20px 40px; }
+    .auth-brand { text-align: center; margin-bottom: 28px; }
+    .auth-logo-badge { width: 68px; height: 68px; margin: 0 auto 16px; border-radius: 20px; background: linear-gradient(135deg, var(--primary-600), var(--primary-800)); display: flex; align-items: center; justify-content: center; font-size: 32px; box-shadow: 0 12px 28px rgba(79,70,229,0.35); border: 1.5px solid rgba(255,255,255,0.15); }
+    .auth-title { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .auth-sub { font-size: 13px; color: var(--text-secondary); max-width: 320px; margin: 0 auto; line-height: 1.5; }
+    .auth-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius-lg); padding: 22px 20px; box-shadow: var(--shadow); }
+    .auth-tabs { display: flex; background: var(--surface-raised); padding: 4px; border-radius: var(--radius-md); margin-bottom: 20px; border: 1px solid var(--border); }
+    .auth-tab-btn { flex: 1; padding: 10px 8px; border: none; background: transparent; color: var(--text-secondary); font-size: 13px; font-weight: 700; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.15s; }
+    .auth-tab-btn.active { background: var(--surface); color: var(--primary-600); box-shadow: var(--shadow-sm); }
+    [data-theme="dark"] .auth-tab-btn.active { color: var(--text-inverse); background: var(--primary-600); }
+    .auth-field { margin-bottom: 16px; }
+    .auth-field label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 6px; color: var(--text-secondary); }
+    .auth-field input { width: 100%; padding: 12px 14px; border-radius: var(--radius-sm); border: 1.5px solid var(--border); background: var(--surface-raised); color: var(--text); font-size: 14px; outline: none; transition: border-color 0.15s; }
+    .auth-field input:focus { border-color: var(--primary-500); }
+    .auth-submit-btn { width: 100%; padding: 13px; border: none; border-radius: var(--radius-sm); background: linear-gradient(135deg, var(--primary-600), var(--primary-700)); color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 14px rgba(79,70,229,0.3); transition: all 0.15s; margin-top: 8px; }
+    .auth-submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .auth-footer-links { text-align: center; margin-top: 18px; font-size: 12px; color: var(--text-muted); }
+    .auth-link { color: var(--primary-500); text-decoration: none; font-weight: 600; cursor: pointer; }
+    .auth-link:hover { text-decoration: underline; }
+    .user-pill-card { background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; margin: 0 16px 14px; }
+    .user-pill-email { font-size: 13px; font-weight: 700; color: var(--text); word-break: break-all; }
+    .user-pill-sub { font-size: 11px; color: var(--text-muted); }
+
     .prod-header { background: linear-gradient(135deg, var(--primary-900) 0%, var(--primary-700) 100%); color: #fff; padding: 14px 16px 18px; }
 
     .settings-list { padding: 0 16px; }
@@ -405,6 +431,219 @@
 
     let state = { view: 'home', categoriaId: null, produtoId: null, tab: 'produtos', produtoFiltro: 'todos', selecao: false, selecionados: new Set(), incluirArquivados: true, sugestaoOculta: false, homeCatFiltro: null };
     let navHistory = [];
+
+    // ==========================================
+    // SUPABASE CLIENT & AUTENTICAÇÃO
+    // ==========================================
+    const SUPABASE_URL = 'https://ulbnnoyitqjilszwweuh.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_yPatCPGytzE6ps8LRjAnZw_Xcmmwe-m';
+    let supabaseClient = null;
+    let currentUser = null;
+
+    try {
+      if (window.supabase && typeof window.supabase.createClient === 'function') {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      }
+    } catch (e) {
+      console.warn('Supabase não inicializado:', e);
+    }
+
+    async function checkAuthSession() {
+      if (!supabaseClient) return null;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session && session.user) {
+          currentUser = session.user;
+          return session.user;
+        }
+      } catch (e) {
+        console.warn('Erro ao checar sessão:', e);
+      }
+      return null;
+    }
+
+    async function logoutSupabase() {
+      if (supabaseClient) {
+        try {
+          await supabaseClient.auth.signOut();
+        } catch (e) {}
+      }
+      currentUser = null;
+      toast('Sessão encerrada com sucesso', 'info');
+      renderAuthScreen();
+    }
+
+    let authMode = 'login'; // 'login', 'signup', 'forgot'
+
+    function renderAuthScreen() {
+      const appEl = document.getElementById('app');
+      if (!appEl) return;
+
+      let formHtml = '';
+      if (authMode === 'login') {
+        formHtml = `
+          <form onsubmit="handleAuthSubmit(event)" id="authForm">
+            <div class="auth-field">
+              <label for="authEmail">E-mail</label>
+              <input type="email" id="authEmail" required placeholder="seuemail@exemplo.com" autocomplete="email">
+            </div>
+            <div class="auth-field">
+              <label for="authPassword">Senha</label>
+              <input type="password" id="authPassword" required placeholder="Digite sua senha" autocomplete="current-password" minlength="6">
+            </div>
+            <button type="submit" class="auth-submit-btn" id="authSubmitBtn">
+              <span>Entrar no OrçaFácil</span>
+              <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </button>
+            <div class="auth-footer-links">
+              <a class="auth-link" onclick="setAuthMode('forgot')">Esqueceu sua senha?</a>
+            </div>
+          </form>
+        `;
+      } else if (authMode === 'signup') {
+        formHtml = `
+          <form onsubmit="handleAuthSubmit(event)" id="authForm">
+            <div class="auth-field">
+              <label for="authEmail">Seu E-mail</label>
+              <input type="email" id="authEmail" required placeholder="seuemail@exemplo.com" autocomplete="email">
+            </div>
+            <div class="auth-field">
+              <label for="authPassword">Crie uma Senha Segura</label>
+              <input type="password" id="authPassword" required placeholder="Mínimo de 6 caracteres" autocomplete="new-password" minlength="6">
+            </div>
+            <div class="auth-field">
+              <label for="authPasswordConfirm">Confirme a Senha</label>
+              <input type="password" id="authPasswordConfirm" required placeholder="Repita a senha" autocomplete="new-password" minlength="6">
+            </div>
+            <button type="submit" class="auth-submit-btn" id="authSubmitBtn">
+              <span>Criar Minha Conta</span>
+              <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </button>
+          </form>
+        `;
+      } else if (authMode === 'forgot') {
+        formHtml = `
+          <form onsubmit="handleAuthSubmit(event)" id="authForm">
+            <div class="auth-field">
+              <label for="authEmail">E-mail Cadastrado</label>
+              <input type="email" id="authEmail" required placeholder="seuemail@exemplo.com" autocomplete="email">
+            </div>
+            <button type="submit" class="auth-submit-btn" id="authSubmitBtn">
+              <span>Enviar Link de Recuperação</span>
+            </button>
+            <div class="auth-footer-links">
+              <a class="auth-link" onclick="setAuthMode('login')">← Voltar para o Login</a>
+            </div>
+          </form>
+        `;
+      }
+
+      appEl.innerHTML = `
+        <div class="auth-container">
+          <div class="auth-brand">
+            <div class="auth-logo-badge">⚡</div>
+            <h1 class="auth-title">OrçaFácil</h1>
+            <p class="auth-sub">Acesso exclusivo e seguro aos seus orçamentos e cotações de preços</p>
+          </div>
+
+          <div class="auth-card">
+            ${authMode !== 'forgot' ? `
+              <div class="auth-tabs">
+                <button type="button" class="auth-tab-btn ${authMode==='login'?'active':''}" onclick="setAuthMode('login')">Entrar</button>
+                <button type="button" class="auth-tab-btn ${authMode==='signup'?'active':''}" onclick="setAuthMode('signup')">Criar Conta</button>
+              </div>
+            ` : `
+              <div style="font-size:14px;font-weight:700;margin-bottom:14px;color:var(--text);display:flex;align-items:center;gap:6px;">
+                <span>🔑 Recuperar Senha</span>
+              </div>
+            `}
+
+            ${formHtml}
+          </div>
+
+          <div style="margin-top:24px;text-align:center;">
+            <div style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);background:var(--surface-raised);padding:6px 12px;border-radius:20px;border:1px solid var(--border);">
+              <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#10b981;"></span>
+              <span>Protegido por Supabase Cloud (v2.4.1)</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function setAuthMode(mode) {
+      authMode = mode;
+      renderAuthScreen();
+    }
+
+    async function handleAuthSubmit(e) {
+      e.preventDefault();
+      if (!supabaseClient) {
+        toast('Supabase não conectado. Verifique a internet.', 'danger');
+        return;
+      }
+
+      const emailInput = document.getElementById('authEmail');
+      const passInput = document.getElementById('authPassword');
+      const passConfirmInput = document.getElementById('authPasswordConfirm');
+      const btn = document.getElementById('authSubmitBtn');
+
+      const email = emailInput ? emailInput.value.trim() : '';
+      const password = passInput ? passInput.value : '';
+
+      if (!email) {
+        toast('Por favor, informe seu e-mail.', 'warning');
+        return;
+      }
+
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span>Processando...</span>`;
+      }
+
+      try {
+        if (authMode === 'login') {
+          const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+          if (error) throw error;
+          currentUser = data.user;
+          toast('Login realizado com sucesso! Bem-vindo.', 'success');
+          renderHome();
+        } else if (authMode === 'signup') {
+          const confirmPass = passConfirmInput ? passConfirmInput.value : '';
+          if (password !== confirmPass) {
+            toast('As senhas digitadas não coincidem.', 'warning');
+            if (btn) { btn.disabled = false; btn.innerHTML = `<span>Criar Minha Conta</span>`; }
+            return;
+          }
+          const { data, error } = await supabaseClient.auth.signUp({ email, password });
+          if (error) throw error;
+          if (data.session) {
+            currentUser = data.user;
+            toast('Conta criada e autenticada com sucesso!', 'success');
+            renderHome();
+          } else {
+            toast('Conta criada! Verifique seu e-mail para confirmar o cadastro.', 'success');
+            setAuthMode('login');
+          }
+        } else if (authMode === 'forgot') {
+          const { error } = await supabaseClient.auth.resetPasswordForEmail(email);
+          if (error) throw error;
+          toast('Instruções de recuperação enviadas para o seu e-mail!', 'success');
+          setAuthMode('login');
+        }
+      } catch (err) {
+        console.error('Erro de autenticação:', err);
+        let msg = err.message || 'Erro ao processar autenticação';
+        if (msg.includes('Invalid login credentials')) msg = 'E-mail ou senha incorretos.';
+        if (msg.includes('User already registered')) msg = 'Este e-mail já está cadastrado. Faça login.';
+        if (msg.includes('Password should be at least')) msg = 'A senha deve ter no mínimo 6 caracteres.';
+        toast(msg, 'danger');
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = authMode === 'login' ? `<span>Entrar no OrçaFácil</span>` : (authMode === 'signup' ? `<span>Criar Minha Conta</span>` : `<span>Enviar Link de Recuperação</span>`);
+        }
+      }
+    }
 
     function pushHistory(view, categoriaId, produtoId, tab) {
       const stateObj = { view, categoriaId, produtoId, tab, produtoFiltro: state.produtoFiltro || 'todos' };
@@ -2344,6 +2583,24 @@
               <div class="settings-arrow">${ICONS.arrowRight}</div>
             </div>
           </div>
+          <div class="section-title">Conta & Segurança</div>
+          <div class="settings-list">
+            <div class="settings-item">
+              <div class="settings-icon" style="color:var(--primary-500);">👤</div>
+              <div class="settings-info">
+                <div class="settings-name">${currentUser ? (currentUser.email || 'Usuário Autenticado') : 'Conectado ao Supabase'}</div>
+                <div class="settings-desc">Sessão ativa na nuvem inforic-apps</div>
+              </div>
+              <span style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:12px;background:var(--success-soft);color:var(--success);">Online</span>
+            </div>
+            <div class="settings-item" onclick="logoutSupabase()">
+              <div class="settings-icon" style="color:var(--danger)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+              </div>
+              <div class="settings-info"><div class="settings-name" style="color:var(--danger)">Sair da Conta (Logout)</div><div class="settings-desc">Encerrar sessão no dispositivo</div></div>
+              <div class="settings-arrow">${ICONS.arrowRight}</div>
+            </div>
+          </div>
           <div class="section-title">Aplicativo</div>
           <div class="settings-list">
             <div class="settings-item" onclick="verificarAtualizacao()">
@@ -2976,13 +3233,20 @@
       try {
         await initDB();
         await seedData();
-        renderHome();
+
+        // Checar se o usuário já possui sessão ativa no Supabase
+        const user = await checkAuthSession();
+        if (user) {
+          renderHome();
+        } else {
+          renderAuthScreen();
+        }
       } catch (err) {
         console.error('Erro ao inicializar:', err);
         document.getElementById('app').innerHTML = `
           <div style="padding:40px 20px;text-align:center;">
             <h2>Ops! Algo deu errado</h2>
-            <p style="color:var(--text-muted);margin-top:8px;">Erro ao carregar o banco de dados local.</p>
+            <p style="color:var(--text-muted);margin-top:8px;">Erro ao carregar o aplicativo.</p>
             <button class="btn btn-primary" style="margin-top:16px;max-width:200px;" onclick="location.reload()">Recarregar</button>
           </div>`;
       }
