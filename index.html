@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#0c0c14" id="themeMeta">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="app-version" content="2.4.1">
+  <meta name="app-version" content="2.4.3">
   <!-- Supabase JS Client v2 -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -536,25 +536,42 @@
             </div>
           </form>
         `;
+      } else if (authMode === 'reset') {
+        formHtml = `
+          <form onsubmit="handleResetSubmit(event)" id="authForm">
+            <div class="auth-field">
+              <label for="authNewPassword">Nova Senha</label>
+              <input type="password" id="authNewPassword" required placeholder="Mínimo de 6 caracteres" autocomplete="new-password" minlength="6">
+            </div>
+            <div class="auth-field">
+              <label for="authNewPasswordConfirm">Confirme a Nova Senha</label>
+              <input type="password" id="authNewPasswordConfirm" required placeholder="Repita a nova senha" autocomplete="new-password" minlength="6">
+            </div>
+            <button type="submit" class="auth-submit-btn" id="authSubmitBtn">
+              <span>Redefinir Senha</span>
+              <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            </button>
+          </form>
+        `;
       }
 
       appEl.innerHTML = `
         <div class="auth-container">
           <div class="auth-brand">
-            <div class="auth-logo-badge">⚡</div>
+            <img src="icons/icon-192.png" alt="OrçaFácil" style="width:68px;height:68px;margin:0 auto 16px;border-radius:20px;box-shadow:0 12px 28px rgba(79,70,229,0.35);border:1.5px solid rgba(255,255,255,0.15);display:block;">
             <h1 class="auth-title">OrçaFácil</h1>
             <p class="auth-sub">Acesso exclusivo e seguro aos seus orçamentos e cotações de preços</p>
           </div>
 
           <div class="auth-card">
-            ${authMode !== 'forgot' ? `
+            ${(authMode === 'login' || authMode === 'signup') ? `
               <div class="auth-tabs">
                 <button type="button" class="auth-tab-btn ${authMode==='login'?'active':''}" onclick="setAuthMode('login')">Entrar</button>
                 <button type="button" class="auth-tab-btn ${authMode==='signup'?'active':''}" onclick="setAuthMode('signup')">Criar Conta</button>
               </div>
             ` : `
               <div style="font-size:14px;font-weight:700;margin-bottom:14px;color:var(--text);display:flex;align-items:center;gap:6px;">
-                <span>🔑 Recuperar Senha</span>
+                <span>${authMode === 'reset' ? '🔒 Definir Nova Senha' : '🔑 Recuperar Senha'}</span>
               </div>
             `}
 
@@ -564,11 +581,45 @@
           <div style="margin-top:24px;text-align:center;">
             <div style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);background:var(--surface-raised);padding:6px 12px;border-radius:20px;border:1px solid var(--border);">
               <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#10b981;"></span>
-              <span>Protegido por Supabase Cloud (v2.4.1)</span>
+              <span>Protegido por Supabase Cloud (v2.4.3)</span>
             </div>
           </div>
         </div>
       `;
+    }
+
+    async function handleResetSubmit(e) {
+      e.preventDefault();
+      if (!supabaseClient) {
+        toast('Supabase não conectado. Verifique a internet.', 'danger');
+        return;
+      }
+      const p1 = document.getElementById('authNewPassword').value;
+      const p2 = document.getElementById('authNewPasswordConfirm').value;
+      const btn = document.getElementById('authSubmitBtn');
+      if (p1 !== p2) {
+        toast('As senhas digitadas não coincidem.', 'warning');
+        return;
+      }
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span>Processando...</span>`;
+      }
+      try {
+        const { error } = await supabaseClient.auth.updateUser({ password: p1 });
+        if (error) throw error;
+        toast('Senha redefinida com sucesso!', 'success');
+        renderHome();
+      } catch (err) {
+        console.error('Erro ao redefinir senha:', err);
+        let msg = err.message || 'Erro ao redefinir senha';
+        if (msg.includes('at least 6 characters')) msg = 'A senha deve ter no mínimo 6 caracteres.';
+        toast(msg, 'danger');
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = `<span>Redefinir Senha</span>`;
+        }
+      }
     }
 
     function setAuthMode(mode) {
@@ -626,7 +677,8 @@
             setAuthMode('login');
           }
         } else if (authMode === 'forgot') {
-          const { error } = await supabaseClient.auth.resetPasswordForEmail(email);
+          const baseUrl = window.location.origin + window.location.pathname.replace(/index\.html$/i, '');
+          const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: baseUrl });
           if (error) throw error;
           toast('Instruções de recuperação enviadas para o seu e-mail!', 'success');
           setAuthMode('login');
@@ -3233,6 +3285,16 @@
       try {
         await initDB();
         await seedData();
+
+        if (supabaseClient) {
+          supabaseClient.auth.onAuthStateChange((event, session) => {
+            if (event === 'PASSWORD_RECOVERY') {
+              currentUser = session ? session.user : null;
+              authMode = 'reset';
+              renderAuthScreen();
+            }
+          });
+        }
 
         // Checar se o usuário já possui sessão ativa no Supabase
         const user = await checkAuthSession();
