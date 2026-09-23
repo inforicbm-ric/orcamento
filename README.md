@@ -1,6 +1,9 @@
-# OrçaFácil v2.4.3 (PWA)
+# OrçaFácil v2.4.4 (PWA)
 
 Aplicativo web completo (Vanilla HTML5, CSS3 e JavaScript) para controle e comparação de orçamentos, cotações e compras com sugestão inteligente de genéricos e similares para farmácia.
+
+## Novidades da v2.4.4
+- **Recuperação de Senha à Prova de Falhas**: detecção do link de recuperação na carga do app (sem depender de eventos/timing), garantia de sessão antes de salvar a nova senha e link de retorno ao login na tela de redefinição.
 
 ## Novidades da v2.4.3
 - **Recuperação de Senha Funcional**: link do e-mail agora redireciona de volta ao app (URL detectada automaticamente) e nova tela "Definir Nova Senha" é exibida ao chegar pelo link.

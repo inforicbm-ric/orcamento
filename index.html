@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#0c0c14" id="themeMeta">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="app-version" content="2.4.3">
+  <meta name="app-version" content="2.4.4">
   <!-- Supabase JS Client v2 -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -448,6 +448,11 @@
       console.warn('Supabase não inicializado:', e);
     }
 
+    // Detecta o fluxo de recuperação de senha direto pela URL o quanto antes.
+    // O supabase-js processa (e pode limpar) o hash antes do init() terminar,
+    // então essa flag precisa ser capturada em código síncrono de topo.
+    const RECOVERY_FLOW = /type=recovery/.test(window.location.hash) || /[?&]code=/.test(window.location.search);
+
     async function checkAuthSession() {
       if (!supabaseClient) return null;
       try {
@@ -551,6 +556,9 @@
               <span>Redefinir Senha</span>
               <svg style="width:16px;height:16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
             </button>
+            <div class="auth-footer-links">
+              <a class="auth-link" onclick="setAuthMode('login')">← Voltar ao Login</a>
+            </div>
           </form>
         `;
       }
@@ -581,7 +589,7 @@
           <div style="margin-top:24px;text-align:center;">
             <div style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);background:var(--surface-raised);padding:6px 12px;border-radius:20px;border:1px solid var(--border);">
               <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#10b981;"></span>
-              <span>Protegido por Supabase Cloud (v2.4.3)</span>
+              <span>Protegido por Supabase Cloud (v2.4.4)</span>
             </div>
           </div>
         </div>
@@ -606,6 +614,20 @@
         btn.innerHTML = `<span>Processando...</span>`;
       }
       try {
+        // Garante que existe sessão de recuperação ativa
+        let sessCheck = null;
+        try {
+          const res = await supabaseClient.auth.getSession();
+          sessCheck = res ? res.data : null;
+        } catch (e) {}
+        if (!sessCheck || !sessCheck.session) {
+          const code = new URLSearchParams(window.location.search).get('code');
+          if (code) {
+            await supabaseClient.auth.exchangeCodeForSession(code);
+          } else {
+            throw new Error('Sessão de recuperação expirada. Solicite um novo link pelo "Esqueceu sua senha?".');
+          }
+        }
         const { error } = await supabaseClient.auth.updateUser({ password: p1 });
         if (error) throw error;
         toast('Senha redefinida com sucesso!', 'success');
@@ -3296,12 +3318,25 @@
           });
         }
 
-        // Checar se o usuário já possui sessão ativa no Supabase
-        const user = await checkAuthSession();
-        if (user) {
-          renderHome();
-        } else {
+        // Se chegou pelo link de recuperação de senha, abre direto o
+        // formulário de nova senha (independente do timing do evento)
+        if (RECOVERY_FLOW) {
+          try {
+            const { data: sessData } = await supabaseClient.auth.getSession();
+            if (sessData && sessData.session && sessData.session.user) {
+              currentUser = sessData.session.user;
+            }
+          } catch (e) {}
+          authMode = 'reset';
           renderAuthScreen();
+        } else {
+          // Checar se o usuário já possui sessão ativa no Supabase
+          const user = await checkAuthSession();
+          if (user) {
+            renderHome();
+          } else {
+            renderAuthScreen();
+          }
         }
       } catch (err) {
         console.error('Erro ao inicializar:', err);
